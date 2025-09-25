@@ -1,0 +1,44 @@
+{
+  "name": "booking",
+  "description": "Default passenger booking flow for AC Shuttles",
+  "ownerEmailLabel": "AC-Request",
+  "ownerTemplate": {
+    "subject": "New Passenger Alert",
+    "tags": ["booking", "owner"],
+    "actions": [
+      {
+        "type": "link",
+        "label": "Accept Request",
+        "path": "/accepted",
+        "emailLabel": "AC-Accept"
+      },
+      {
+        "type": "link",
+        "label": "Deny Request",
+        "path": "/denied",
+        "emailLabel": "AC-Deny"
+      }
+    ]
+  },
+  "customerTemplates": {
+    "accepted": {
+      "subjectPrefix": "AC-Accept",
+      "tags": ["booking", "customer", "accepted"]
+    },
+    "denied": {
+      "subjectPrefix": "AC-Deny",
+      "tags": ["booking", "customer", "denied"]
+    }
+  },
+  "requiredFields": [
+    "price",
+    "start_location",
+    "end_location",
+    "customer_name",
+    "pickup_time",
+    "estimated_distance",
+    "estimated_duration",
+    "email",
+    "passengers"
+  ]
+}

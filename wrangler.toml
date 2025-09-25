@@ -1,0 +1,32 @@
+name = "ac-shuttle-dev-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-20"
+
+[vars]
+CUSTOMER_FROM_EMAIL = "nadim@perfectpages.org"
+OWNER_EMAIL = "nadimkabir28@gmail.com"
+DRIVER_CONTACT_NAME = "Driver Name"
+DRIVER_CONTACT_EMAIL = "contact@ac-shuttles.com"
+DRIVER_CONTACT_PHONE = "770-370-9714"
+RESEND_DRY_RUN = "false"
+VERBOSE_LOGGING = "true"
+RATE_LIMIT_WINDOW_SECONDS = "60"
+RATE_LIMIT_MAX_REQUESTS = "10"
+TOKEN_TTL_MINUTES = "60"
+GOOGLE_SHEET_ID_PRIMARY = "11RfnWvLHlqNxr2mAclA3EV6B0TNtlsrPhnwWfUYRs-c"
+GOOGLE_SHEET_ID_BACKUP = "1nXo9uYppGvd1RD5z00yparQ90lSmYk5RIQ6WlvE8Qn0"
+GOOGLE_SHEET_ID_AUDIT = ""
+GOOGLE_SHEET_RANGE_PRIMARY = "Sheet1!A:Z"
+GOOGLE_SHEET_RANGE_BACKUP = "Sheet1!A:Z"
+GOOGLE_SHEET_RANGE_AUDIT = ""
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+
+[[kv_namespaces]]
+binding = "SECURITY_STATE"
+id = "ede01caad2af4033ad5fc86cf68fd914"
+preview_id = "ede01caad2af4033ad5fc86cf68fd914"

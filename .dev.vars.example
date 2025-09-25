@@ -1,0 +1,22 @@
+WEBHOOK_SECRET="replace-with-your-shared-secret"
+RESEND_API_KEY="replace-with-resend-api-key"
+RESEND_DRY_RUN="true"
+VERBOSE_LOGGING="true"
+OWNER_EMAIL="owner@example.com"
+CUSTOMER_FROM_EMAIL="driver@yourdomain.com" # used for owner + customer emails
+DRIVER_CONTACT_NAME="Driver Name"
+DRIVER_CONTACT_EMAIL="driver@yourdomain.com"
+DRIVER_CONTACT_PHONE="+1-555-555-5555"
+# Sample payload that mirrors the Framer booking form submission shape.
+WEBHOOK_PAYLOAD='{"customer_name":"Jamie Rivera","email":"jamie@example.com","contact_phone":"+1-555-867-5309","start_location":"123 Market St, San Francisco, CA","end_location":"SFO Terminal 3","pickup_time":"2025-09-23T12:30:00-07:00","estimated_distance":"13 miles","estimated_duration":"25 minutes","price":"$74.00","passengers":"2","notes":"Flight UA456 arrives at 11:40","vehicle_type":"Premium SUV"}'
+GOOGLE_SHEET_ID_PRIMARY="primary-sheet-id"
+GOOGLE_SHEET_ID_BACKUP="backup-sheet-id"
+GOOGLE_SHEET_RANGE_PRIMARY="Sheet1!A:Z"
+GOOGLE_SHEET_RANGE_BACKUP="Sheet1!A:Z"
+# Leave audit sheet unset to reuse backup sheet for audit (optional override)
+GOOGLE_SHEET_ID_AUDIT=""
+GOOGLE_SHEET_RANGE_AUDIT=""
+TOKEN_TTL_MINUTES="60"
+RATE_LIMIT_WINDOW_SECONDS="60"
+RATE_LIMIT_MAX_REQUESTS="10"
+# GOOGLE_SERVICE_ACCOUNT is stored as a Wrangler secret using `wrangler secret put`
