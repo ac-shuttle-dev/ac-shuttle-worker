@@ -15,6 +15,17 @@ export interface AppendRowParams {
   values: (string | number | null)[];
 }
 
+export interface ReadRangeParams {
+  sheetId: string;
+  range: string;
+}
+
+export interface UpdateRangeParams {
+  sheetId: string;
+  range: string;
+  values: (string | number | null)[][];
+}
+
 export interface GoogleSheetsClientOptions {
   credentialsJson: string;
   fetchImpl?: typeof fetch;
@@ -62,6 +73,56 @@ export class GoogleSheetsClient {
 
   async appendAuditEntry(params: AppendRowParams): Promise<void> {
     await this.appendRow(params);
+  }
+
+  async readRange(params: ReadRangeParams): Promise<(string | number | null)[][]> {
+    const token = await this.getAccessToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+      params.sheetId
+    )}/values/${encodeURIComponent(params.range)}`;
+
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await safeReadText(response);
+      throw new Error(
+        `Google Sheets read failed (${response.status}): ${errorText}`
+      );
+    }
+
+    const data = await response.json() as { values?: (string | number | null)[][] };
+    return data.values || [];
+  }
+
+  async updateRange(params: UpdateRangeParams): Promise<void> {
+    const token = await this.getAccessToken();
+    const url = new URL(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+        params.sheetId
+      )}/values/${encodeURIComponent(params.range)}`
+    );
+    url.searchParams.set("valueInputOption", "USER_ENTERED");
+
+    const response = await this.fetchImpl(url.toString(), {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ values: params.values }),
+    });
+
+    if (!response.ok) {
+      const errorText = await safeReadText(response);
+      throw new Error(
+        `Google Sheets update failed (${response.status}): ${errorText}`
+      );
+    }
   }
 
   private async getAccessToken(): Promise<string> {

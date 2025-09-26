@@ -3,8 +3,10 @@ import { GoogleSheetsClient } from "../../integrations/googleSheets";
 import { SecurityResult } from "../security";
 import { computeTransactionId } from "./transaction";
 
+type RequiredField = string | string[];
+
 interface BookingFlowConfig {
-  requiredFields: string[];
+  requiredFields: RequiredField[];
 }
 
 const bookingConfig = bookingFlow as BookingFlowConfig;
@@ -129,7 +131,7 @@ async function buildSubmissionSummary(
   const pickupTime = requireField(payload, ["pickup_time", "pickupTime"]);
   const estimatedDistance = requireField(payload, ["estimated_distance", "distance"]);
   const estimatedDuration = requireField(payload, ["estimated_duration", "duration"]);
-  const price = requireField(payload, ["price", "estimated_price"]);
+  const price = optionalField(payload, ["price", "estimated_price"]) ?? "TBD";
   const passengers = requireField(payload, ["passengers", "passenger_count"]);
   const phone = optionalField(payload, ["phone", "phone_number", "contact_phone"]);
   const vehicleType = optionalField(payload, ["vehicle_type", "vehicleType"]);
@@ -204,9 +206,20 @@ function buildSubmissionRow({
 }
 
 function ensureRequiredFields(payload: Record<string, unknown>): void {
-  for (const key of bookingConfig.requiredFields ?? []) {
-    if (!hasValue(payload, key)) {
-      throw new Response(`Missing required field: ${key}`, { status: 400 });
+  for (const field of bookingConfig.requiredFields ?? []) {
+    if (Array.isArray(field)) {
+      // Some Framer forms rename core fields (e.g. `customer_email` vs
+      // `email`). A field array means "at least one of these keys must be
+      // present" so we can tolerate those variations without rewriting the
+      // JSON config per form.
+      if (field.some((key) => hasValue(payload, key))) {
+        continue;
+      }
+      throw new Response(`Missing required field: ${field[0]}`, { status: 400 });
+    }
+
+    if (!hasValue(payload, field)) {
+      throw new Response(`Missing required field: ${field}`, { status: 400 });
     }
   }
 }
@@ -265,4 +278,113 @@ function hasValue(payload: Record<string, unknown>, key: string): boolean {
     return value.trim().length > 0;
   }
   return value !== undefined && value !== null;
+}
+
+export interface BookingStatusResult {
+  currentStatus: string | null;
+  rowIndex: number | null;
+}
+
+export async function checkAndUpdateBookingStatus(
+  transactionId: string,
+  newStatus: 'Accepted' | 'Denied',
+  env: CoordinationEnv
+): Promise<BookingStatusResult> {
+  const primarySheetId = env.GOOGLE_SHEET_ID_PRIMARY;
+  if (!primarySheetId) {
+    throw new Error("Missing GOOGLE_SHEET_ID_PRIMARY");
+  }
+
+  if (!env.GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT secret");
+  }
+
+  const sheetsClient = new GoogleSheetsClient({
+    credentialsJson: env.GOOGLE_SERVICE_ACCOUNT,
+  });
+
+  const primaryRange = env.GOOGLE_SHEET_RANGE_PRIMARY ?? "Sheet1!A:Z";
+
+  // Read all rows to find the matching transaction ID
+  const rows = await sheetsClient.readRange({
+    sheetId: primarySheetId,
+    range: primaryRange,
+  });
+
+  // Find the row with matching transaction ID (column A, index 0)
+  let targetRowIndex = -1;
+  let currentStatus: string | null = null;
+  
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === transactionId) {
+      targetRowIndex = i;
+      // Status is in column S (index 18) based on buildSubmissionRow
+      currentStatus = rows[i][18] as string || DEFAULT_STATUS;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error(`Transaction ID ${transactionId} not found in sheets`);
+  }
+
+  // Check if already processed
+  if (currentStatus && currentStatus !== DEFAULT_STATUS) {
+    // Return the existing status without updating
+    return {
+      currentStatus,
+      rowIndex: targetRowIndex + 1, // Convert to 1-indexed for Google Sheets
+    };
+  }
+
+  // Update the status in the specific cell
+  const statusRange = `Sheet1!S${targetRowIndex + 1}:S${targetRowIndex + 1}`;
+  await sheetsClient.updateRange({
+    sheetId: primarySheetId,
+    range: statusRange,
+    values: [[newStatus]],
+  });
+
+  // Also update backup sheet if configured
+  const backupSheetId = env.GOOGLE_SHEET_ID_BACKUP;
+  if (backupSheetId) {
+    const backupRange = env.GOOGLE_SHEET_RANGE_BACKUP ?? "Sheet1!A:Z";
+    const backupRows = await sheetsClient.readRange({
+      sheetId: backupSheetId,
+      range: backupRange,
+    });
+
+    for (let i = 0; i < backupRows.length; i++) {
+      if (backupRows[i][0] === transactionId) {
+        const backupStatusRange = `Sheet1!S${i + 1}:S${i + 1}`;
+        await sheetsClient.updateRange({
+          sheetId: backupSheetId,
+          range: backupStatusRange,
+          values: [[newStatus]],
+        });
+        break;
+      }
+    }
+  }
+
+  // Add audit entry
+  const auditSheetId = env.GOOGLE_SHEET_ID_AUDIT ?? env.GOOGLE_SHEET_ID_BACKUP;
+  if (auditSheetId) {
+    const auditRange = env.GOOGLE_SHEET_RANGE_AUDIT ?? "Audit!A:Z";
+    await sheetsClient.appendAuditEntry({
+      sheetId: auditSheetId,
+      range: auditRange,
+      values: [
+        transactionId,
+        `status_updated_to_${newStatus.toLowerCase()}`,
+        new Date().toISOString(),
+        "",
+      ],
+    });
+  }
+
+  return {
+    currentStatus: newStatus,
+    rowIndex: targetRowIndex + 1,
+  };
 }

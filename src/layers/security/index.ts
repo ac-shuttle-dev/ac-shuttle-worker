@@ -42,7 +42,10 @@ export async function validateRequest<TBody extends Record<string, unknown>>(
   const submissionId = request.headers.get("framer-webhook-submission-id");
 
   if (!signature || !submissionId) {
-    throw new Response("Unauthorized", { status: 401 });
+    const missing = [];
+    if (!signature) missing.push("framer-signature");
+    if (!submissionId) missing.push("framer-webhook-submission-id");
+    throw new Response(`Unauthorized: Missing headers - ${missing.join(", ")}`, { status: 401 });
   }
 
   const isVerified = await verifyFramerSignature(
@@ -53,7 +56,7 @@ export async function validateRequest<TBody extends Record<string, unknown>>(
   );
 
   if (!isVerified) {
-    throw new Response("Unauthorized", { status: 401 });
+    throw new Response("Unauthorized: Invalid HMAC signature", { status: 401 });
   }
 
   const rawBody = new TextDecoder().decode(bodyBuffer);
@@ -66,7 +69,7 @@ export async function validateRequest<TBody extends Record<string, unknown>>(
 
   const customerEmail = extractEmail(parsedBody);
   if (!customerEmail) {
-    throw new Response("Missing customer email", { status: 400 });
+    throw new Response("Missing customer email in payload (checked: email, customer_email, contact_email, customerEmail)", { status: 400 });
   }
 
   const rateLimitKey = customerEmail.toLowerCase();

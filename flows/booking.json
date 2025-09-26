@@ -31,14 +31,13 @@
     }
   },
   "requiredFields": [
-    "price",
     "start_location",
-    "end_location",
+    "end_location", 
     "customer_name",
     "pickup_time",
     "estimated_distance",
     "estimated_duration",
-    "email",
+    ["customer_email", "email", "contact_email", "customerEmail"],
     "passengers"
   ]
 }
