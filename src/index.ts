@@ -1,19 +1,44 @@
-// Entry point for the Resend-backed webhook worker.
-// The request lifecycle is deliberately staged so the structured logs contain
-// a complete narrative for every Framer webhook attempt:
-//   1. Capture request metadata (URL, Ray ID, retry attempt, source IP) and
-//      emit a `[webhook] received` log before we inspect the body.
-//   2. Run the security layer, which enforces HTTP method, HMAC verification,
-//      rate limits, and duplicate suppression. Any failure is reported via a
-//      `[webhook] failed` log that includes the HTTP status and rejection text.
-//   3. Forward the normalized payload to the coordination layer so the
-//      submission is persisted to Google Sheets and audit trails.
-//   4. Compose the owner notification and, unless `RESEND_DRY_RUN` is active,
-//      relay it through Resend. Delivery problems are surfaced together with
-//      Resend’s response text to simplify debugging.
-//   5. Mark the submission as processed in KV and emit a terminal
-//      `[webhook] completed` log containing the transaction ID, payload
-//      snapshot, and (when applicable) the Resend message identifier.
+/**
+ * AC Shuttles Booking System - Production Webhook Worker
+ * 
+ * This is the main entry point for a comprehensive booking system that handles:
+ * - Secure webhook processing from Framer forms
+ * - Google Sheets integration with audit trail
+ * - Professional email notifications via Resend
+ * - One-time secure decision tokens with status validation
+ * - Comprehensive logging and error handling
+ * 
+ * ARCHITECTURE OVERVIEW:
+ * ├── Security Layer: HMAC verification, rate limiting, duplicate prevention
+ * ├── Coordination Layer: Google Sheets CRUD, transaction ID generation, audit trail
+ * ├── Messaging Layer: Professional email design with information hierarchy
+ * └── Decision System: Secure token-based accept/deny workflow
+ * 
+ * REQUEST LIFECYCLE:
+ *   1. Route handling (/accept/<token>, /deny/<token>, or webhook)
+ *   2. Security validation (HMAC, rate limits, duplicate detection)
+ *   3. Data processing and Google Sheets persistence
+ *   4. Owner notification with secure decision links
+ *   5. Comprehensive logging and success/error handling
+ * 
+ * MAJOR FEATURES IMPLEMENTED:
+ * - ✅ One-time secure tokens (SHA-256) with Google Sheets status validation
+ * - ✅ Professional email design optimized for information value and print compatibility  
+ * - ✅ Decision workflow with protection against duplicate decisions
+ * - ✅ Comprehensive audit trail with structured JSON logging
+ * - ✅ Mobile-responsive email templates compatible with all major email clients
+ * - ✅ Optional field support (price, vehicle type, notes) for flexible forms
+ * 
+ * SECURITY ENHANCEMENTS:
+ * - Status-based token expiration (not time-based) 
+ * - Google Sheets validation before allowing decisions
+ * - Protection against replay attacks and multiple decisions
+ * - Comprehensive HMAC signature validation
+ * 
+ * @version 2.0.0 - Production Ready
+ * @author AC Shuttles Development Team
+ * @lastUpdated 2025-09-26
+ */
 
 import type { SecurityResult } from "./layers/security";
 import { validateRequest, SecurityEnv } from "./layers/security";
@@ -316,6 +341,27 @@ async function validateAndUseToken(
   return tokenData;
 }
 
+/**
+ * Handles owner decision workflow (/accept/<token> and /deny/<token> routes)
+ * 
+ * SECURITY MODEL:
+ * - Uses one-time SHA-256 tokens instead of direct transaction IDs
+ * - Validates current booking status in Google Sheets before allowing decisions
+ * - Prevents multiple decisions and replay attacks
+ * - Links remain valid until status changes from "Pending Review"
+ * 
+ * WORKFLOW:
+ * 1. Extract and validate secure token from URL
+ * 2. Check current booking status in Google Sheets
+ * 3. If already decided, show "Decision Already Made" page
+ * 4. If still pending, update status and send customer notification
+ * 5. Show success confirmation page
+ * 
+ * @param request - HTTP request with token in URL path
+ * @param env - Environment variables and KV bindings
+ * @param decision - Either 'accepted' or 'denied'
+ * @returns Response with HTML confirmation page or error
+ */
 async function handleOwnerDecision(
   request: Request,
   env: Env,
@@ -818,6 +864,32 @@ async function safeReadResponse(response: Response): Promise<string> {
   }
 }
 
+/**
+ * Builds professional owner notification email with information hierarchy design
+ * 
+ * EMAIL DESIGN PHILOSOPHY:
+ * - Information-first: Price and route prominently displayed at top
+ * - Professional appearance: Black/teal theme with proper spacing
+ * - Action-oriented: Clear "IMMEDIATE ACTION REQUIRED" messaging
+ * - Multi-platform compatibility: Works in Gmail, Outlook, Apple Mail, and print
+ * 
+ * SECURITY FEATURES:
+ * - Secure one-time tokens embedded in accept/deny links
+ * - Status-based expiration (valid until decision made)
+ * - Print-compatible CSS for professional appearance
+ * - Mobile responsive design using table layouts
+ * 
+ * INFORMATION HIERARCHY:
+ * 1. Price and route (most critical - large, prominent display)
+ * 2. Trip specifications (duration, distance, passengers, time)
+ * 3. Customer contact information (lower priority but accessible)
+ * 4. Action buttons (clear, urgent call-to-action)
+ * 
+ * @param summary - Processed booking summary with all trip details
+ * @param rawBody - Original webhook payload for audit trail
+ * @param env - Environment variables for URLs and contact info
+ * @returns Complete email payload ready for Resend API
+ */
 async function buildOwnerEmailPayload({
   summary,
   rawBody,

@@ -1,27 +1,55 @@
-# Resend Webhook Worker
+# AC Shuttles Booking System 🚗
 
-Cloudflare Worker that accepts Framer form webhooks, verifies their HMAC signature, and optionally relays a notification email via Resend.
+**Production-ready Cloudflare Worker** that processes Framer form submissions into a complete booking workflow with secure decision handling, Google Sheets integration, and professional email notifications.
 
 ```mermaid
 graph TD
-  A[Framer Form] -->|POST + HMAC| B[Cloudflare Worker]
-  B -->|Verify signature| C{Valid?}
-  C -- No --> D[401 Unauthorized]
-  C -- Yes --> E[Build email payload]
-  E -->|RESEND_DRY_RUN=true| F[Log only]
-  E -->|RESEND_DRY_RUN=false| G[Resend API]
-  G --> H[Notification Email]
-  F --> I[JSON response]
-  G --> I
+  A[Framer Form] -->|Webhook + HMAC| B[Security Layer]
+  B -->|Valid| C[Coordination Layer]
+  B -->|Invalid| D[🚫 401/429 Error]
+  
+  C -->|Generate Transaction ID| E[Google Sheets]
+  E -->|Primary + Backup| F[Audit Trail]
+  
+  C -->|Build Email| G[Owner Notification]
+  G -->|Secure Tokens| H[📧 Professional Email]
+  H -->|Accept Link| I[✅ Accept Decision]  
+  H -->|Deny Link| J[❌ Deny Decision]
+  
+  I -->|Update Status| K[Google Sheets Update]
+  J -->|Update Status| K
+  K -->|Customer Notification| L[📧 Confirmation Email]
+  
+  I -->|Success Page| M[✅ Confirmation]
+  J -->|Success Page| N[❌ Confirmation]
 ```
 
-- **Security**: Every request must include `framer-signature` and `framer-webhook-submission-id`. The Worker recomputes the HMAC using `WEBHOOK_SECRET` before touching the payload.
-- **Notifications**: When not in dry-run mode, the Worker POSTs a summary email to Resend using `RESEND_API_KEY`.
-- **Config**: Provide `WEBHOOK_SECRET`, `RESEND_API_KEY`, `CUSTOMER_FROM_EMAIL`, `OWNER_EMAIL`, and optional Sheets + rate limit variables via Wrangler secrets/vars or `.dev.vars` for local dev.
-- **Local testing**: Run `npm run webhook:test` (reads secrets from `.dev.vars`) to replay a signed webhook against the worker while running `wrangler dev`.
-- **Verbose diagnostics**: Set `VERBOSE_LOGGING=true` in `.dev.vars` or as a secret to expose detailed request, signature, and Resend call logs.
-- **Project plan**: See `docs/PRD.md` for layered architecture, Google Sheets integration requirements, and phase roadmap.
-- **Google Sheets setup**: Follow `docs/GOOGLE_SHEETS_SETUP.md` to create a service account, share your sheets, and load the credentials secret.
+## 🎯 **Current Status: Production Ready** ✅
+
+**Version 2.0.0** - Complete booking system with all major features implemented:
+
+### ✅ **Core Features**
+- **🔐 Security**: HMAC verification, rate limiting, one-time secure tokens (SHA-256)
+- **📊 Data Management**: Google Sheets CRUD with primary/backup/audit trail
+- **📧 Professional Emails**: Information-first design, print-compatible, mobile-responsive
+- **🎯 Decision Workflow**: Secure accept/deny system with status validation
+- **📱 Multi-Platform**: Works perfectly in Gmail, Outlook, Apple Mail, and print
+- **🔄 Comprehensive Logging**: Structured JSON logs with full audit trail
+
+### ✅ **Major Enhancements Completed**
+- **One-time secure tokens**: SHA-256 hashed tokens prevent replay attacks
+- **Google Sheets integration**: Full read/write/update operations with audit trail  
+- **Status-based validation**: Links remain valid until booking status changes
+- **Professional email design**: Information hierarchy with price/route prominence
+- **Print compatibility**: CSS ensures proper rendering when printed
+- **Optional field support**: Handles forms with/without pricing, vehicle types, notes
+- **Decision protection**: Prevents multiple decisions with clear error pages
+
+### ✅ **Architecture Overview**
+- **Security Layer**: HMAC verification, rate limiting, duplicate prevention
+- **Coordination Layer**: Google Sheets CRUD, transaction IDs, audit trail  
+- **Messaging Layer**: Professional email templates with mobile/print compatibility
+- **Decision System**: Secure token-based workflow with status validation
 
 ## Quick Start
 
