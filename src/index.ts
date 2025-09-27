@@ -44,6 +44,20 @@ import type { SecurityResult } from "./layers/security";
 import { validateRequest, SecurityEnv } from "./layers/security";
 import { handleSubmission, CoordinationEnv, CoordinationResult, checkAndUpdateBookingStatus } from "./layers/coordination";
 import { GoogleSheetsClient } from "./integrations/googleSheets";
+import { 
+  generateOwnerNotificationEmail, 
+  generateCustomerConfirmationEmail, 
+  generateCustomerDenialEmail,
+  parseAddress,
+  generateLocationCode,
+  formatTicketDate,
+  formatTicketTime,
+  calculateArrivalTime,
+  parseDurationMinutes,
+  type OwnerNotificationData,
+  type CustomerConfirmationData,
+  type CustomerDenialData 
+} from "./templates/emails";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 const DEFAULT_TOKEN_TTL_MINUTES = 60;
@@ -420,6 +434,8 @@ async function handleOwnerDecision(
     
     // Send customer notification
     if (!env.RESEND_DRY_RUN || env.RESEND_DRY_RUN.toLowerCase() !== "true") {
+      // TODO: Fetch full booking details from Google Sheets using tokenData.transactionId
+      // For now, use the simple fallback version
       const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env);
       await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
     }
@@ -458,68 +474,130 @@ async function handleOwnerDecision(
 function buildCustomerNotificationEmail(
   decision: 'accepted' | 'denied',
   customer: { name: string; email: string },
-  env: Env
+  env: Env,
+  bookingDetails?: {
+    startLocation: string;
+    endLocation: string;
+    pickupTime: string;
+    price: string;
+    passengers: string;
+    estimatedDuration: string;
+    bookingRef: string;
+  }
 ): EmailPayload {
   const isAccepted = decision === 'accepted';
-  const subject = `${isAccepted ? '✅' : '❌'} Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
+  const subject = `${isAccepted ? '🎫' : '❌'} Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
   
-  const html = `<!DOCTYPE html>
+  if (!bookingDetails) {
+    // Fallback to simple email if no booking details available
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Booking ${isAccepted ? 'Confirmed' : 'Update'} - AC Shuttles</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-        <div style="background: ${isAccepted ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' : 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)'}; color: white; padding: 40px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px;">${isAccepted ? '✅ Booking Confirmed!' : '❌ Booking Update'}</h1>
-            <p style="margin: 10px 0 0 0; font-size: 18px; opacity: 0.9;">AC Shuttles</p>
-        </div>
-        <div style="padding: 40px;">
-            <p style="font-size: 16px; margin-bottom: 24px;">Dear ${escapeHtml(customer.name)},</p>
-            ${isAccepted ? `
-            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-                Great news! Your shuttle booking has been <strong>confirmed</strong>. Our driver will contact you shortly with final details.
-            </p>
-            <div style="background-color: #d4edda; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                <h3 style="margin: 0 0 16px 0; color: #155724;">Driver Contact Information</h3>
-                <p style="margin: 0; font-size: 16px;">
-                    <strong>Name:</strong> ${env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver'}<br>
-                    <strong>Phone:</strong> <a href="tel:${env.DRIVER_CONTACT_PHONE}" style="color: #28a745;">${env.DRIVER_CONTACT_PHONE}</a><br>
-                    <strong>Email:</strong> <a href="mailto:${env.DRIVER_CONTACT_EMAIL}" style="color: #28a745;">${env.DRIVER_CONTACT_EMAIL}</a>
-                </p>
-            </div>
-            <p style="font-size: 16px; line-height: 1.6;">
-                Please be ready at your pickup location 5-10 minutes before your scheduled time. Our driver will call you upon arrival.
-            </p>
-            ` : `
-            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-                We regret to inform you that we cannot accommodate your shuttle booking at this time. This may be due to scheduling conflicts or route limitations.
-            </p>
-            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-                Please feel free to contact us directly at <a href="tel:${env.DRIVER_CONTACT_PHONE}" style="color: #007bff;">${env.DRIVER_CONTACT_PHONE}</a> to discuss alternative arrangements.
-            </p>
-            `}
-            <p style="font-size: 16px; margin-top: 32px;">
-                Thank you for choosing AC Shuttles!<br>
-                <strong>AC Shuttles Team</strong>
-            </p>
-        </div>
+<body style="margin: 0; padding: 20px; background-color: #f8f9fa; font-family: Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 8px;">
+        <h1 style="color: ${isAccepted ? '#16a34a' : '#dc2626'};">${isAccepted ? '✅ Booking Confirmed!' : '❌ Booking Update'}</h1>
+        <p>Dear ${escapeHtml(customer.name)},</p>
+        ${isAccepted 
+          ? `<p>Your shuttle booking has been confirmed. Our driver will contact you shortly.</p>
+             <p><strong>Driver Contact:</strong><br>
+             Name: ${env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver'}<br>
+             Phone: <a href="tel:${env.DRIVER_CONTACT_PHONE}">${env.DRIVER_CONTACT_PHONE}</a><br>
+             Email: <a href="mailto:${env.DRIVER_CONTACT_EMAIL}">${env.DRIVER_CONTACT_EMAIL}</a></p>`
+          : `<p>We regret that we cannot accommodate your shuttle booking at this time. Please contact us at <a href="tel:${env.DRIVER_CONTACT_PHONE}">${env.DRIVER_CONTACT_PHONE}</a> for alternatives.</p>`
+        }
+        <p>Thank you for choosing AC Shuttles!</p>
     </div>
 </body>
 </html>`;
 
-  return {
-    from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
-    to: customer.email,
-    subject,
-    html,
-    text: isAccepted 
-      ? `Booking Confirmed!\n\nDear ${customer.name},\n\nYour shuttle booking has been confirmed. Our driver will contact you shortly.\n\nDriver Contact:\nName: ${env.DRIVER_CONTACT_NAME}\nPhone: ${env.DRIVER_CONTACT_PHONE}\nEmail: ${env.DRIVER_CONTACT_EMAIL}\n\nThank you for choosing AC Shuttles!`
-      : `Booking Update\n\nDear ${customer.name},\n\nWe regret that we cannot accommodate your shuttle booking at this time. Please contact us at ${env.DRIVER_CONTACT_PHONE} for alternatives.\n\nThank you for considering AC Shuttles.`,
-    tags: [`booking-${decision}`, "customer-notification"],
-  };
+    return {
+      from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+      to: customer.email,
+      subject,
+      html,
+      text: isAccepted 
+        ? `Booking Confirmed!\n\nDear ${customer.name},\n\nYour shuttle booking has been confirmed. Our driver will contact you shortly.\n\nDriver Contact:\nName: ${env.DRIVER_CONTACT_NAME}\nPhone: ${env.DRIVER_CONTACT_PHONE}\nEmail: ${env.DRIVER_CONTACT_EMAIL}\n\nThank you for choosing AC Shuttles!`
+        : `Booking Update\n\nDear ${customer.name},\n\nWe regret that we cannot accommodate your shuttle booking at this time. Please contact us at ${env.DRIVER_CONTACT_PHONE} for alternatives.\n\nThank you for considering AC Shuttles.`,
+      tags: [`booking-${decision}`, "customer-notification"],
+    };
+  }
+
+  // Use ticket-style templates with full booking details
+  if (isAccepted) {
+    // Parse times and generate data for confirmation template
+    const pickupTime = new Date(bookingDetails.pickupTime);
+    const durationMinutes = parseDurationMinutes(bookingDetails.estimatedDuration);
+    const arrivalTimeIso = calculateArrivalTime(bookingDetails.pickupTime, durationMinutes);
+    
+    const templateData: CustomerConfirmationData = {
+      startLocation: bookingDetails.startLocation,
+      endLocation: bookingDetails.endLocation,
+      startLocationCode: generateLocationCode(bookingDetails.startLocation),
+      endLocationCode: generateLocationCode(bookingDetails.endLocation),
+      pickupTime: formatTicketTime(bookingDetails.pickupTime),
+      arrivalTime: formatTicketTime(arrivalTimeIso),
+      pickupDate: formatTicketDate(bookingDetails.pickupTime),
+      arrivalDate: formatTicketDate(arrivalTimeIso),
+      price: bookingDetails.price,
+      passengers: bookingDetails.passengers,
+      estimatedDuration: bookingDetails.estimatedDuration,
+      customerName: customer.name,
+      customerEmail: customer.email,
+      driverName: env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver',
+      driverPhone: env.DRIVER_CONTACT_PHONE || '',
+      driverEmail: env.DRIVER_CONTACT_EMAIL || '',
+      pickupAddress: parseAddress(bookingDetails.startLocation),
+      dropoffAddress: parseAddress(bookingDetails.endLocation),
+      bookingRef: bookingDetails.bookingRef,
+    };
+    
+    const { html, text } = generateCustomerConfirmationEmail(templateData);
+    
+    return {
+      from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+      to: customer.email,
+      subject,
+      html,
+      text,
+      tags: ["booking-accepted", "customer-notification"],
+    };
+  } else {
+    // Use denial template
+    const templateData: CustomerDenialData = {
+      startLocation: bookingDetails.startLocation,
+      endLocation: bookingDetails.endLocation,
+      startLocationCode: generateLocationCode(bookingDetails.startLocation),
+      endLocationCode: generateLocationCode(bookingDetails.endLocation),
+      pickupTime: formatTicketTime(bookingDetails.pickupTime),
+      arrivalTime: formatTicketTime(bookingDetails.pickupTime), // Same as pickup for denied
+      pickupDate: formatTicketDate(bookingDetails.pickupTime),
+      arrivalDate: formatTicketDate(bookingDetails.pickupTime),
+      passengers: bookingDetails.passengers,
+      estimatedDuration: bookingDetails.estimatedDuration,
+      customerName: customer.name,
+      customerEmail: customer.email,
+      contactPhone: env.DRIVER_CONTACT_PHONE || '',
+      contactEmail: env.DRIVER_CONTACT_EMAIL || '',
+      pickupAddress: parseAddress(bookingDetails.startLocation),
+      dropoffAddress: parseAddress(bookingDetails.endLocation),
+      bookingRef: bookingDetails.bookingRef,
+    };
+    
+    const { html, text } = generateCustomerDenialEmail(templateData);
+    
+    return {
+      from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+      to: customer.email,
+      subject,
+      html,
+      text,
+      tags: ["booking-denied", "customer-notification"],
+    };
+  }
 }
 
 function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: string, customerName: string): string {
@@ -865,25 +943,14 @@ async function safeReadResponse(response: Response): Promise<string> {
 }
 
 /**
- * Builds professional owner notification email with information hierarchy design
+ * Builds professional owner notification email using ticket card design
  * 
- * EMAIL DESIGN PHILOSOPHY:
- * - Information-first: Price and route prominently displayed at top
- * - Professional appearance: Black/teal theme with proper spacing
- * - Action-oriented: Clear "IMMEDIATE ACTION REQUIRED" messaging
- * - Multi-platform compatibility: Works in Gmail, Outlook, Apple Mail, and print
- * 
- * SECURITY FEATURES:
- * - Secure one-time tokens embedded in accept/deny links
- * - Status-based expiration (valid until decision made)
- * - Print-compatible CSS for professional appearance
- * - Mobile responsive design using table layouts
- * 
- * INFORMATION HIERARCHY:
- * 1. Price and route (most critical - large, prominent display)
- * 2. Trip specifications (duration, distance, passengers, time)
- * 3. Customer contact information (lower priority but accessible)
- * 4. Action buttons (clear, urgent call-to-action)
+ * Uses the new ticket-style templates for consistent branding and better
+ * mobile responsiveness. Features:
+ * - Realistic ticket card appearance
+ * - Clear route display with location codes
+ * - Secure one-time decision links
+ * - Professional information hierarchy
  * 
  * @param summary - Processed booking summary with all trip details
  * @param rawBody - Original webhook payload for audit trail
@@ -899,9 +966,6 @@ async function buildOwnerEmailPayload({
   rawBody: string;
   env: Env;
 }): Promise<EmailPayload> {
-  const priceDisplay = summary.price === "TBD" ? "TBD" : summary.price;
-  const subject = `💰 ${priceDisplay} Ride Request – ${summary.startLocation} → ${summary.endLocation}`;
-  
   // Generate secure one-time tokens for accept/deny actions
   const { acceptToken, denyToken } = await generateDecisionTokens(
     summary.transactionId,
@@ -914,225 +978,47 @@ async function buildOwnerEmailPayload({
   const acceptUrl = `${baseUrl}/accept/${acceptToken}`;
   const denyUrl = `${baseUrl}/deny/${denyToken}`;
   
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Ride Request - AC Shuttles</title>
-    <style>
-        /* Print-friendly styles */
-        @media print {
-            * { 
-                -webkit-print-color-adjust: exact !important; 
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            body { 
-                background-color: white !important; 
-                color: black !important;
-            }
-            .container { 
-                background-color: white !important; 
-                border: 1px solid #ccc !important;
-                box-shadow: none !important;
-            }
-            .header-section {
-                background-color: #0D9B8A !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-            }
-            .price-highlight {
-                background-color: #0D9B8A !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-            }
-            .info-section {
-                background-color: #f5f5f5 !important;
-                border: 1px solid #ddd !important;
-                color: black !important;
-            }
-            .section-label {
-                color: #0D9B8A !important;
-                font-weight: bold !important;
-            }
-            .action-button {
-                border: 2px solid #0D9B8A !important;
-                background-color: white !important;
-                color: #0D9B8A !important;
-                font-weight: bold !important;
-            }
-        }
-        
-        /* Mobile responsive */
-        @media only screen and (max-width: 600px) {
-            .container { width: 100% !important; }
-            .content { padding: 24px !important; }
-            table { width: 100% !important; }
-            td { display: block !important; width: 100% !important; padding: 8px 0 !important; }
-        }
-    </style>
-    <!--[if mso]>
-    <noscript>
-        <xml>
-            <o:OfficeDocumentSettings>
-                <o:AllowPNG/>
-                <o:PixelsPerInch>96</o:PixelsPerInch>
-            </o:OfficeDocumentSettings>
-        </xml>
-    </noscript>
-    <![endif]-->
-</head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #ffffff; min-height: 100vh;">
-    <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #000000;">
-        <!-- Header -->
-        <div class="header-section" style="background: linear-gradient(135deg, #0D9B8A 0%, #0BD8B6 100%); color: #000000; padding: 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px; font-weight: 700;">🚗 AC Shuttles Booking Request</h1>
-            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.8; font-weight: 500;">Action Required</p>
-        </div>
-        
-        <!-- Content -->
-        <div style="padding: 40px;">
-            <!-- Price & Route Summary -->
-            <div class="price-highlight" style="background: linear-gradient(135deg, #0D9B8A 0%, #0BD8B6 100%); border-radius: 12px; padding: 24px; margin-bottom: 32px; text-align: center;">
-                <div style="font-size: 36px; font-weight: 900; color: #000000; line-height: 1; margin-bottom: 12px;">
-                    💰 ${summary.price === "TBD" ? "PRICING TBD" : escapeHtml(summary.price)}
-                </div>
-                <div style="font-size: 18px; font-weight: 700; color: #000000; margin-bottom: 8px;">
-                    📍 ${escapeHtml(summary.startLocation)} → ${escapeHtml(summary.endLocation)}
-                </div>
-                <div style="font-size: 14px; color: #000000; opacity: 0.8; font-weight: 600;">
-                    🕒 ${escapeHtml(summary.pickupTime)} • 👥 ${escapeHtml(summary.passengers)} passenger${parseInt(summary.passengers) === 1 ? '' : 's'} • ⏱️ ${escapeHtml(summary.estimatedDuration)}
-                </div>
-            </div>
-            
-            <!-- Trip Details -->
-            <div class="info-section" style="background-color: #1a1a1a; border-radius: 12px; padding: 24px; margin-bottom: 32px; border: 1px solid #333;">
-                <h2 style="margin: 0 0 16px 0; font-size: 18px; color: #0BD8B6; font-weight: 600;">
-                    📋 Trip Details
-                </h2>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="width: 50%; padding-right: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Distance</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">${escapeHtml(summary.estimatedDistance)}</div>
-                        </td>
-                        <td style="width: 50%; padding-left: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Duration</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">${escapeHtml(summary.estimatedDuration)}</div>
-                        </td>
-                    </tr>
-                    ${summary.vehicleType || summary.notes ? `<tr>
-                        ${summary.vehicleType ? `<td style="width: 50%; padding-right: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Vehicle Type</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">${escapeHtml(summary.vehicleType)}</div>
-                        </td>` : '<td></td>'}
-                        ${summary.notes ? `<td style="width: 50%; padding-left: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Special Notes</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">${escapeHtml(summary.notes)}</div>
-                        </td>` : '<td></td>'}
-                    </tr>` : ''}
-                </table>
-            </div>
-            
-            <!-- Customer Contact -->
-            <div class="info-section" style="background-color: #1a1a1a; border-radius: 12px; padding: 24px; margin-bottom: 32px; border: 1px solid #333;">
-                <h2 style="margin: 0 0 16px 0; font-size: 18px; color: #0BD8B6; font-weight: 600;">
-                    📞 Customer Information
-                </h2>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="width: 50%; padding-right: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Customer Name</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">${escapeHtml(summary.customerName)}</div>
-                        </td>
-                        <td style="width: 50%; padding-left: 12px; vertical-align: top; padding-bottom: 16px;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Phone</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">
-                                ${summary.customerPhone ? `<a href="tel:${escapeHtml(summary.customerPhone)}" style="color: #0BD8B6; text-decoration: none;">${escapeHtml(summary.customerPhone)}</a>` : '<span style="color: #666;">Not provided</span>'}
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td colspan="2" style="padding-bottom: 0;">
-                            <div class="section-label" style="color: #0D9B8A; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600;">Email Address</div>
-                            <div style="font-size: 16px; color: #ffffff; font-weight: 600;">
-                                <a href="mailto:${escapeHtml(summary.customerEmail)}" style="color: #0BD8B6; text-decoration: none; word-break: break-word;">${escapeHtml(summary.customerEmail)}</a>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div style="text-align: center; margin-bottom: 40px;">
-                <h2 style="margin: 0 0 24px 0; font-size: 24px; color: #ffffff; font-weight: 700;">⚡ IMMEDIATE ACTION REQUIRED</h2>
-                <table style="margin: 0 auto; border-collapse: separate; border-spacing: 16px;">
-                    <tr>
-                        <td style="text-align: center;">
-                            <a href="${acceptUrl}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #0D9B8A 0%, #0BD8B6 100%); color: #000000; padding: 18px 36px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; min-width: 180px; text-align: center; box-shadow: 0 4px 12px rgba(13, 155, 138, 0.3);">
-                                ✅ ACCEPT
-                            </a>
-                        </td>
-                        <td style="text-align: center;">
-                            <a href="${denyUrl}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: #ffffff; padding: 18px 36px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; min-width: 180px; text-align: center; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);">
-                                ❌ DECLINE
-                            </a>
-                        </td>
-                    </tr>
-                </table>
-                <p style="margin: 16px 0 0 0; font-size: 13px; color: #999;">Click to respond immediately</p>
-            </div>
-            
-            <!-- Footer Information -->
-            <div style="border-top: 2px solid #333; padding: 32px 0; text-align: center;">
-                <p style="margin: 0 0 12px 0; color: #666; font-size: 13px;">
-                    This is an automated message from AC Shuttles booking system.
-                </p>
-                <p style="margin: 0; color: #0BD8B6; font-size: 12px; font-weight: 500;">
-                    ℹ️ Links are valid until a decision is made (status: "Pending Review").
-                </p>
-            </div>
-        </div>
-    </div>
-</body>
-</html>`;
-
-  const textLines = [
-    "🚗 NEW RIDE REQUEST - AC SHUTTLES",
-    "=" .repeat(40),
-    "",
-    "CUSTOMER DETAILS:",
-    `Name: ${summary.customerName}`,
-    `Email: ${summary.customerEmail}`,
-    `Phone: ${summary.customerPhone ?? "Not provided"}`,
-    `Passengers: ${summary.passengers} ${parseInt(summary.passengers) === 1 ? 'person' : 'people'}`,
-    "",
-    "TRIP DETAILS:",
-    `Pickup: ${summary.startLocation}`,
-    `Drop-off: ${summary.endLocation}`,
-    `Time: ${summary.pickupTime}`,
-    `Distance: ${summary.estimatedDistance}`,
-    `Duration: ${summary.estimatedDuration}`,
-    `Price: ${summary.price === "TBD" ? "To Be Calculated" : summary.price}`,
-    ...(summary.notes ? ["", `Notes: ${summary.notes}`] : []),
-    "",
-    "ACTION REQUIRED:",
-    `Accept: ${acceptUrl}`,
-    `Decline: ${denyUrl}`,
-    "",
-    `Transaction ID: ${summary.transactionId.slice(0, 16)}...`,
-    "",
-    "This is an automated message from AC Shuttles booking system.",
-    "Security Notice: Links are valid until a decision is made (status: 'Pending Review').",
-  ];
+  // Parse pickup and dropoff times
+  const pickupTime = new Date(summary.pickupTime);
+  const durationMinutes = parseDurationMinutes(summary.estimatedDuration);
+  const arrivalTimeIso = calculateArrivalTime(summary.pickupTime, durationMinutes);
+  
+  // Prepare data for ticket template
+  const templateData: OwnerNotificationData = {
+    startLocation: summary.startLocation,
+    endLocation: summary.endLocation, 
+    startLocationCode: generateLocationCode(summary.startLocation),
+    endLocationCode: generateLocationCode(summary.endLocation),
+    pickupTime: formatTicketTime(summary.pickupTime),
+    arrivalTime: formatTicketTime(arrivalTimeIso),
+    pickupDate: formatTicketDate(summary.pickupTime),
+    arrivalDate: formatTicketDate(arrivalTimeIso),
+    price: summary.price === "TBD" ? "TBD" : summary.price,
+    passengers: summary.passengers,
+    estimatedDuration: summary.estimatedDuration,
+    estimatedDistance: summary.estimatedDistance,
+    customerName: summary.customerName,
+    customerEmail: summary.customerEmail,
+    customerPhone: summary.customerPhone,
+    pickupAddress: parseAddress(summary.startLocation),
+    dropoffAddress: parseAddress(summary.endLocation),
+    vehicleType: summary.vehicleType,
+    notes: summary.notes,
+    bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
+    acceptUrl,
+    denyUrl
+  };
+  
+  // Generate ticket-style email
+  const { html, text } = generateOwnerNotificationEmail(templateData);
+  const subject = `🎫 ${templateData.price} Ride Request – ${templateData.startLocationCode} → ${templateData.endLocationCode}`;
 
   return {
     from: `AC Shuttles Booking System <${env.CUSTOMER_FROM_EMAIL}>`,
     to: env.OWNER_EMAIL,
     subject,
     html,
-    text: textLines.join("\n"),
+    text,
     tags: ["booking-alert", "owner-notification", "action-required"],
     replyTo: summary.customerEmail, // Allow direct reply to customer
     headers: {

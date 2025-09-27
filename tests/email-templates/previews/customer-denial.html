@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Denial Email - AC Shuttles Email Preview</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .preview-header {
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .preview-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .email-frame {
+            width: 100%;
+            min-height: 800px;
+            border: none;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 15px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-header">
+        <a href="index.html" class="back-link">← Back to All Previews</a>
+        <h1>Customer Denial Email</h1>
+        <p style="color: #666; margin: 10px 0 0 0;">This is the email that customers receive when their booking is declined.</p>
+    </div>
+    
+    <div class="preview-container">
+        <iframe class="email-frame" srcdoc="<!DOCTYPE html>
+<html lang=&quot;en&quot;>
+<head>
+    <meta charset=&quot;UTF-8&quot;>
+    <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;>
+    <title>Booking Update - AC Shuttles</title>
+    <style>
+        /* Reset styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #fafafa;
+            padding: 20px;
+            line-height: 1.4;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fafafa;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+        
+        .header h1 {
+            color: #dc2626;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #991b1b;
+            font-size: 16px;
+        }
+        
+        /* Ticket Card Styles */
+        .ticket-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+            overflow: hidden;
+            border: 3px solid #fecaca;
+        }
+        
+        .ticket-header {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .ticket-header::before,
+        .ticket-header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px,
+                transparent 4px,
+                white 4px,
+                white 8px
+            );
+        }
+        
+        .ticket-header::before { left: 0; }
+        .ticket-header::after { right: 0; }
+        
+        .ticket-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .ticket-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .ticket-body {
+            padding: 24px;
+        }
+        
+        /* Route Display - Cancelled */
+        .route-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: #fef2f2;
+            border-radius: 12px;
+            border: 2px solid #fecaca;
+            opacity: 0.7;
+        }
+        
+        .location-box {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .location-code {
+            font-size: 24px;
+            font-weight: 900;
+            color: #7f1d1d;
+            margin-bottom: 4px;
+        }
+        
+        .location-name {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .route-arrow {
+            margin: 0 16px;
+            font-size: 20px;
+            color: #dc2626;
+        }
+        
+        /* Times */
+        .times-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #fef2f2;
+            border-radius: 8px;
+            opacity: 0.7;
+        }
+        
+        .time-column {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .time-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        
+        .time-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #7f1d1d;
+            margin-bottom: 2px;
+        }
+        
+        .date-value {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Details Grid */
+        .details-grid {
+            display: flex;
+            margin-bottom: 20px;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            overflow: hidden;
+            opacity: 0.7;
+        }
+        
+        .detail-box {
+            flex: 1;
+            text-align: center;
+            padding: 16px 8px;
+            border-right: 1px solid #fecaca;
+        }
+        
+        .detail-box:last-child {
+            border-right: none;
+        }
+        
+        .detail-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #7f1d1d;
+        }
+        
+        /* Information Sections */
+        .info-section {
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #fef2f2;
+            border-radius: 8px;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .info-title {
+            font-size: 12px;
+            color: #dc2626;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        
+        .info-content {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .contact-item {
+            margin-bottom: 6px;
+        }
+        
+        .contact-link {
+            color: #dc2626;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .contact-link:hover {
+            text-decoration: underline;
+        }
+        
+        .alternative-item {
+            margin-bottom: 8px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #fecaca;
+        }
+        
+        .alternative-icon {
+            display: inline-block;
+            width: 20px;
+            margin-right: 8px;
+        }
+        
+        /* Perforated Line */
+        .perforation {
+            border-top: 2px dashed #fecaca;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        .perforation::before,
+        .perforation::after {
+            content: '';
+            position: absolute;
+            top: -8px;
+            width: 16px;
+            height: 16px;
+            background: #fafafa;
+            border-radius: 50%;
+            border: 2px solid #fecaca;
+        }
+        
+        .perforation::before { left: -8px; }
+        .perforation::after { right: -8px; }
+        
+        /* Ticket Stub */
+        .ticket-stub {
+            text-align: center;
+            padding: 16px;
+            background: #fef2f2;
+        }
+        
+        .booking-ref {
+            font-size: 14px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 4px;
+        }
+        
+        .validity {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Cancellation Notice */
+        .cancellation-notice {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 2px solid #ef4444;
+        }
+        
+        .cancellation-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 8px;
+        }
+        
+        .cancellation-text {
+            color: #991b1b;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            padding: 20px;
+            border-top: 2px solid #fecaca;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* Mobile Responsive */
+        @media only screen and (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            .route-section {
+                flex-direction: column;
+                padding: 16px;
+            }
+            
+            .route-arrow {
+                margin: 12px 0;
+                transform: rotate(90deg);
+            }
+            
+            .times-section {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .details-grid {
+                flex-direction: column;
+            }
+            
+            .detail-box {
+                border-right: none;
+                border-bottom: 1px solid #fecaca;
+            }
+            
+            .detail-box:last-child {
+                border-bottom: none;
+            }
+            
+            .location-code {
+                font-size: 20px;
+            }
+            
+            .ticket-body {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class=&quot;email-container&quot;>
+        <div class=&quot;header&quot;>
+            <h1>📍 AC SHUTTLES</h1>
+            <p>❌ Booking Update</p>
+        </div>
+        
+        <div class=&quot;cancellation-notice&quot;>
+            <div class=&quot;cancellation-title&quot;>We cannot accommodate this trip</div>
+            <div class=&quot;cancellation-text&quot;>We regret that we cannot accommodate your ride request at this time</div>
+        </div>
+        
+        <div class=&quot;ticket-card&quot;>
+            <div class=&quot;ticket-header&quot;>
+                <div class=&quot;ticket-title&quot;>🎫 AC SHUTTLES TICKET</div>
+                <div class=&quot;ticket-subtitle&quot;>❌ CANCELLED</div>
+            </div>
+            
+            <div class=&quot;ticket-body&quot;>
+                <!-- Route Display - Cancelled -->
+                <div class=&quot;route-section&quot;>
+                    <div class=&quot;location-box&quot;>
+                        <div class=&quot;location-code&quot;>ATLC</div>
+                        <div class=&quot;location-name&quot;>Atlantic City</div>
+                    </div>
+                    <div class=&quot;route-arrow&quot;>❌</div>
+                    <div class=&quot;location-box&quot;>
+                        <div class=&quot;location-code&quot;>ACNT</div>
+                        <div class=&quot;location-name&quot;>AC International Airport</div>
+                    </div>
+                </div>
+                
+                <!-- Times -->
+                <div class=&quot;times-section&quot;>
+                    <div class=&quot;time-column&quot;>
+                        <div class=&quot;time-label&quot;>Requested</div>
+                        <div class=&quot;time-value&quot;>3:30 PM</div>
+                        <div class=&quot;date-value&quot;>DEC 15, MON</div>
+                    </div>
+                    <div class=&quot;time-column&quot;>
+                        <div class=&quot;time-label&quot;>Requested</div>
+                        <div class=&quot;time-value&quot;>4:30 PM</div>
+                        <div class=&quot;date-value&quot;>DEC 15, MON</div>
+                    </div>
+                </div>
+                
+                <!-- Details Grid -->
+                <div class=&quot;details-grid&quot;>
+                    <div class=&quot;detail-box&quot;>
+                        <div class=&quot;detail-label&quot;>Passengers</div>
+                        <div class=&quot;detail-value&quot;>2</div>
+                    </div>
+                    <div class=&quot;detail-box&quot;>
+                        <div class=&quot;detail-label&quot;>Status</div>
+                        <div class=&quot;detail-value&quot;>DECLINED</div>
+                    </div>
+                    <div class=&quot;detail-box&quot;>
+                        <div class=&quot;detail-label&quot;>Duration</div>
+                        <div class=&quot;detail-value&quot;>25 minutes</div>
+                    </div>
+                </div>
+                
+                <!-- Cancellation Notice -->
+                <div class=&quot;info-section&quot;>
+                    <div class=&quot;info-title&quot;>📋 Cancellation Notice</div>
+                    <div class=&quot;info-content&quot;>
+                        We regret that we cannot accommodate your ride request due to Schedule conflict or route limitations. We appreciate your understanding.
+                    </div>
+                </div>
+                
+                <!-- Alternative Options -->
+                <div class=&quot;info-section&quot;>
+                    <div class=&quot;info-title&quot;>🔄 Alternative Options</div>
+                    <div class=&quot;info-content&quot;>
+                        <div class=&quot;alternative-item&quot;>
+                            <span class=&quot;alternative-icon&quot;>📞</span>
+                            <strong>Call us:</strong> <a href=&quot;tel:(555) 987-6543&quot; class=&quot;contact-link&quot;>(555) 987-6543</a>
+                        </div>
+                        <div class=&quot;alternative-item&quot;>
+                            <span class=&quot;alternative-icon&quot;>📧</span>
+                            <strong>Email us:</strong> <a href=&quot;mailto:bookings@acshuttles.com&quot; class=&quot;contact-link&quot;>bookings@acshuttles.com</a>
+                        </div>
+                        
+                        <div class=&quot;alternative-item&quot;>
+                            <span class=&quot;alternative-icon&quot;>🌐</span>
+                            <strong>Website:</strong> <a href=&quot;https://acshuttles.com&quot; class=&quot;contact-link&quot;>https://acshuttles.com</a>
+                        </div>
+                        
+                        
+                        <div style=&quot;margin-top: 12px; padding: 12px; background: #f3f4f6; border-radius: 6px;&quot;>
+                            <strong>We may have:</strong><br>
+                            • Alternative pickup/drop-off times<br>
+                            • Different routes available<br>
+                            • Partner services that can help
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Original Request -->
+                <div class=&quot;info-section&quot;>
+                    <div class=&quot;info-title&quot;>📍 Original Request</div>
+                    <div class=&quot;info-content&quot;>
+                        <div style=&quot;margin-bottom: 8px;&quot;>
+                            <strong>Pickup:</strong><br>
+                            1000 Boardwalk<br>
+                            Atlantic City, NJ 08401
+                        </div>
+                        <div>
+                            <strong>Dropoff:</strong><br>
+                            101 Atlantic City International Airport<br>
+                            Egg Harbor Township, NJ 08234
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Perforated Line -->
+                <div class=&quot;perforation&quot;></div>
+                
+                <!-- Ticket Stub -->
+                <div class=&quot;ticket-stub&quot;>
+                    <div class=&quot;booking-ref&quot;>BOOKING REF: AC250359445</div>
+                    <div class=&quot;validity&quot;>Ride Cancelled</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class=&quot;footer&quot;>
+            We appreciate your understanding and hope to serve you in the future.<br>
+            📞 Need help? Call (555) 987-6543
+        </div>
+    </div>
+</body>
+</html>"></iframe>
+    </div>
+</body>
+</html>
