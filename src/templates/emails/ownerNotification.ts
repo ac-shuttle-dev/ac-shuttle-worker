@@ -139,14 +139,14 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         /* Route Display */
         .route-section {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 24px;
             padding: 20px 16px;
             background: #f8fdf8;
             border-radius: 12px;
             border: 2px dashed #d0e7d0;
-            min-height: 80px;
+            min-height: 120px;
         }
         
         .route-item {
@@ -157,6 +157,10 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
             line-height: 1.6;
             padding: 20px 16px;
             text-align: left;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            min-height: 80px;
         }
         
         .route-item strong {
@@ -166,8 +170,10 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         
         .route-arrow {
             margin: 0 16px;
-            font-size: 20px;
+            font-size: 24px;
             color: #4a8a5a;
+            align-self: center;
+            flex-shrink: 0;
         }
         
         /* Fare & Pickup Time */
