@@ -423,8 +423,7 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>📍 AC SHUTTLES</h1>
-            <p>✅ Booking Confirmed</p>
+            <h1 style="color: #333;">🚐 AC SHUTTLES</h1>
         </div>
         
         <div class="success-message">
@@ -466,10 +465,6 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                     <div class="detail-box">
                         <div class="detail-label">Fare</div>
                         <div class="detail-value">${data.price}</div>
-                    </div>
-                    <div class="detail-box">
-                        <div class="detail-label">Duration</div>
-                        <div class="detail-value">${data.estimatedDuration}</div>
                     </div>
                 </div>
                 

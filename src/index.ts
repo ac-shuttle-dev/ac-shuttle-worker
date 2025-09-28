@@ -48,12 +48,8 @@ import {
   generateOwnerNotificationEmail, 
   generateCustomerConfirmationEmail, 
   generateCustomerDenialEmail,
-  parseAddress,
-  generateLocationCode,
   formatTicketDate,
   formatTicketTime,
-  calculateArrivalTime,
-  parseDurationMinutes,
   type OwnerNotificationData,
   type CustomerConfirmationData,
   type CustomerDenialData 
@@ -528,20 +524,11 @@ function buildCustomerNotificationEmail(
 
   // Use ticket-style templates with full booking details
   if (isAccepted) {
-    // Parse times and generate data for confirmation template
-    const pickupTime = new Date(bookingDetails.pickupTime);
-    const durationMinutes = parseDurationMinutes(bookingDetails.estimatedDuration);
-    const arrivalTimeIso = calculateArrivalTime(bookingDetails.pickupTime, durationMinutes);
-    
     const templateData: CustomerConfirmationData = {
       startLocation: bookingDetails.startLocation,
       endLocation: bookingDetails.endLocation,
-      startLocationCode: generateLocationCode(bookingDetails.startLocation),
-      endLocationCode: generateLocationCode(bookingDetails.endLocation),
       pickupTime: formatTicketTime(bookingDetails.pickupTime),
-      arrivalTime: formatTicketTime(arrivalTimeIso),
       pickupDate: formatTicketDate(bookingDetails.pickupTime),
-      arrivalDate: formatTicketDate(arrivalTimeIso),
       price: bookingDetails.price,
       passengers: bookingDetails.passengers,
       estimatedDuration: bookingDetails.estimatedDuration,
@@ -550,8 +537,6 @@ function buildCustomerNotificationEmail(
       driverName: env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver',
       driverPhone: env.DRIVER_CONTACT_PHONE || '',
       driverEmail: env.DRIVER_CONTACT_EMAIL || '',
-      pickupAddress: parseAddress(bookingDetails.startLocation),
-      dropoffAddress: parseAddress(bookingDetails.endLocation),
       bookingRef: bookingDetails.bookingRef,
     };
     
@@ -570,20 +555,13 @@ function buildCustomerNotificationEmail(
     const templateData: CustomerDenialData = {
       startLocation: bookingDetails.startLocation,
       endLocation: bookingDetails.endLocation,
-      startLocationCode: generateLocationCode(bookingDetails.startLocation),
-      endLocationCode: generateLocationCode(bookingDetails.endLocation),
       pickupTime: formatTicketTime(bookingDetails.pickupTime),
-      arrivalTime: formatTicketTime(bookingDetails.pickupTime), // Same as pickup for denied
       pickupDate: formatTicketDate(bookingDetails.pickupTime),
-      arrivalDate: formatTicketDate(bookingDetails.pickupTime),
       passengers: bookingDetails.passengers,
-      estimatedDuration: bookingDetails.estimatedDuration,
       customerName: customer.name,
       customerEmail: customer.email,
       contactPhone: env.DRIVER_CONTACT_PHONE || '',
       contactEmail: env.DRIVER_CONTACT_EMAIL || '',
-      pickupAddress: parseAddress(bookingDetails.startLocation),
-      dropoffAddress: parseAddress(bookingDetails.endLocation),
       bookingRef: bookingDetails.bookingRef,
     };
     
@@ -978,21 +956,12 @@ async function buildOwnerEmailPayload({
   const acceptUrl = `${baseUrl}/accept/${acceptToken}`;
   const denyUrl = `${baseUrl}/deny/${denyToken}`;
   
-  // Parse pickup and dropoff times
-  const pickupTime = new Date(summary.pickupTime);
-  const durationMinutes = parseDurationMinutes(summary.estimatedDuration);
-  const arrivalTimeIso = calculateArrivalTime(summary.pickupTime, durationMinutes);
-  
   // Prepare data for ticket template
   const templateData: OwnerNotificationData = {
     startLocation: summary.startLocation,
-    endLocation: summary.endLocation, 
-    startLocationCode: generateLocationCode(summary.startLocation),
-    endLocationCode: generateLocationCode(summary.endLocation),
+    endLocation: summary.endLocation,
     pickupTime: formatTicketTime(summary.pickupTime),
-    arrivalTime: formatTicketTime(arrivalTimeIso),
     pickupDate: formatTicketDate(summary.pickupTime),
-    arrivalDate: formatTicketDate(arrivalTimeIso),
     price: summary.price === "TBD" ? "TBD" : summary.price,
     passengers: summary.passengers,
     estimatedDuration: summary.estimatedDuration,
@@ -1000,8 +969,6 @@ async function buildOwnerEmailPayload({
     customerName: summary.customerName,
     customerEmail: summary.customerEmail,
     customerPhone: summary.customerPhone,
-    pickupAddress: parseAddress(summary.startLocation),
-    dropoffAddress: parseAddress(summary.endLocation),
     vehicleType: summary.vehicleType,
     notes: summary.notes,
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
@@ -1011,7 +978,7 @@ async function buildOwnerEmailPayload({
   
   // Generate ticket-style email
   const { html, text } = generateOwnerNotificationEmail(templateData);
-  const subject = `🎫 ${templateData.price} Ride Request – ${templateData.startLocationCode} → ${templateData.endLocationCode}`;
+  const subject = `🎫 ${templateData.price} Ride Request – ${templateData.startLocation.split(',')[0]} → ${templateData.endLocation.split(',')[0]}`;
 
   return {
     from: `AC Shuttles Booking System <${env.CUSTOMER_FROM_EMAIL}>`,

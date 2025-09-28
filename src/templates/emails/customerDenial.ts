@@ -9,18 +9,14 @@
  * - Professional appearance that explains next steps
  */
 
-import { parseAddress, generateLocationCode } from './utils';
 
 export interface CustomerDenialData {
   // Trip details
   startLocation: string;  // Full physical address (e.g., "1000 Boardwalk, Atlantic City, NJ 08401")
   endLocation: string;    // Full physical address (e.g., "101 Atlantic City International Airport, Egg Harbor Township, NJ 08234")
   pickupTime: string;
-  arrivalTime: string;
   pickupDate: string;
-  arrivalDate: string;
   passengers: string;
-  estimatedDuration: string;
   
   // Customer details
   customerName: string;
@@ -37,12 +33,6 @@ export interface CustomerDenialData {
 }
 
 export function generateCustomerDenialEmail(data: CustomerDenialData): { html: string; text: string } {
-  // Parse addresses and generate location codes
-  const startLocationCode = generateLocationCode(data.startLocation);
-  const endLocationCode = generateLocationCode(data.endLocation);
-  const pickupAddress = parseAddress(data.startLocation);
-  const dropoffAddress = parseAddress(data.endLocation);
-  
   const defaultReason = "Schedule conflict or route limitations";
   const reason = data.reason || defaultReason;
   
@@ -80,14 +70,9 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         }
         
         .header h1 {
-            color: #dc2626;
+            color: #333;
             font-size: 24px;
             margin-bottom: 8px;
-        }
-        
-        .header p {
-            color: #991b1b;
-            font-size: 16px;
         }
         
         /* Ticket Card Styles */
@@ -160,17 +145,13 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
             flex: 1;
         }
         
-        .location-code {
-            font-size: 24px;
-            font-weight: 900;
-            color: #7f1d1d;
-            margin-bottom: 4px;
-        }
-        
         .location-name {
-            font-size: 12px;
-            color: #666;
-            font-weight: 500;
+            font-size: 22px;
+            color: #333;
+            font-weight: 600;
+            line-height: 1.4;
+            padding: 12px 8px;
+            text-align: center;
         }
         
         .route-arrow {
@@ -179,41 +160,37 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
             color: #dc2626;
         }
         
-        /* Times */
-        .times-section {
-            display: flex;
-            justify-content: space-between;
+        /* Pickup Time */
+        .pickup-time-section {
+            text-align: center;
             margin-bottom: 20px;
-            padding: 16px;
+            padding: 20px;
             background: #fef2f2;
             border-radius: 8px;
+            border: 2px solid #fecaca;
             opacity: 0.7;
         }
         
-        .time-column {
-            text-align: center;
-            flex: 1;
-        }
-        
         .time-label {
-            font-size: 11px;
-            color: #666;
+            font-size: 18px;
+            color: #dc2626;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 4px;
-            font-weight: 600;
+            margin-bottom: 8px;
+            font-weight: 700;
         }
         
         .time-value {
-            font-size: 16px;
-            font-weight: 700;
-            color: #7f1d1d;
-            margin-bottom: 2px;
+            font-size: 28px;
+            font-weight: 900;
+            color: #dc2626;
+            margin-bottom: 4px;
         }
         
         .date-value {
-            font-size: 12px;
-            color: #666;
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
         }
         
         /* Details Grid */
@@ -238,7 +215,7 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         }
         
         .detail-label {
-            font-size: 10px;
+            font-size: 14px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -247,9 +224,9 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         }
         
         .detail-value {
-            font-size: 16px;
+            font-size: 22px;
             font-weight: 700;
-            color: #7f1d1d;
+            color: #dc2626;
         }
         
         /* Information Sections */
@@ -427,8 +404,7 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>📍 AC SHUTTLES</h1>
-            <p>❌ Booking Update</p>
+            <h1 style="color: #333;">🚐 AC SHUTTLES</h1>
         </div>
         
         <div class="cancellation-notice">
@@ -446,28 +422,19 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                 <!-- Route Display - Cancelled -->
                 <div class="route-section">
                     <div class="location-box">
-                        <div class="location-code">${data.startLocationCode}</div>
                         <div class="location-name">${data.startLocation}</div>
                     </div>
                     <div class="route-arrow">❌</div>
                     <div class="location-box">
-                        <div class="location-code">${data.endLocationCode}</div>
                         <div class="location-name">${data.endLocation}</div>
                     </div>
                 </div>
                 
-                <!-- Times -->
-                <div class="times-section">
-                    <div class="time-column">
-                        <div class="time-label">Requested</div>
-                        <div class="time-value">${data.pickupTime}</div>
-                        <div class="date-value">${data.pickupDate}</div>
-                    </div>
-                    <div class="time-column">
-                        <div class="time-label">Requested</div>
-                        <div class="time-value">${data.arrivalTime}</div>
-                        <div class="date-value">${data.arrivalDate}</div>
-                    </div>
+                <!-- Pickup Time -->
+                <div class="pickup-time-section">
+                    <div class="time-label">Requested Pickup Time</div>
+                    <div class="time-value">${data.pickupTime}</div>
+                    <div class="date-value">${data.pickupDate}</div>
                 </div>
                 
                 <!-- Details Grid -->
@@ -479,10 +446,6 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                     <div class="detail-box">
                         <div class="detail-label">Status</div>
                         <div class="detail-value">DECLINED</div>
-                    </div>
-                    <div class="detail-box">
-                        <div class="detail-label">Duration</div>
-                        <div class="detail-value">${data.estimatedDuration}</div>
                     </div>
                 </div>
                 
@@ -522,24 +485,6 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                     </div>
                 </div>
                 
-                <!-- Original Request -->
-                <div class="info-section">
-                    <div class="info-title">📍 Original Request</div>
-                    <div class="info-content">
-                        <div style="margin-bottom: 8px;">
-                            <strong>Pickup:</strong><br>
-                            ${data.pickupAddress.street}<br>
-                            ${data.pickupAddress.suite ? data.pickupAddress.suite + '<br>' : ''}
-                            ${data.pickupAddress.city}, ${data.pickupAddress.state} ${data.pickupAddress.zipCode}
-                        </div>
-                        <div>
-                            <strong>Dropoff:</strong><br>
-                            ${data.dropoffAddress.street}<br>
-                            ${data.dropoffAddress.suite ? data.dropoffAddress.suite + '<br>' : ''}
-                            ${data.dropoffAddress.city}, ${data.dropoffAddress.state} ${data.dropoffAddress.zipCode}
-                        </div>
-                    </div>
-                </div>
                 
                 <!-- Perforated Line -->
                 <div class="perforation"></div>
@@ -568,10 +513,10 @@ We regret that we cannot accommodate your ride request at this time.
 
 ORIGINAL REQUEST:
 =================
-Route: ${data.startLocationCode} (${data.startLocation}) → ${data.endLocationCode} (${data.endLocation})
+From: ${data.startLocation}
+To: ${data.endLocation}
 Requested: ${data.pickupTime} on ${data.pickupDate}
 Passengers: ${data.passengers}
-Duration: ${data.estimatedDuration}
 
 CANCELLATION NOTICE:
 ====================
@@ -586,16 +531,6 @@ We may have:
 • Alternative pickup/drop-off times
 • Different routes available  
 • Partner services that can help
-
-ORIGINAL PICKUP:
-================
-${data.pickupAddress.street}
-${data.pickupAddress.suite ? data.pickupAddress.suite + '\n' : ''}${data.pickupAddress.city}, ${data.pickupAddress.state} ${data.pickupAddress.zipCode}
-
-ORIGINAL DROPOFF:
-=================
-${data.dropoffAddress.street}
-${data.dropoffAddress.suite ? data.dropoffAddress.suite + '\n' : ''}${data.dropoffAddress.city}, ${data.dropoffAddress.state} ${data.dropoffAddress.zipCode}
 
 BOOKING REF: ${data.bookingRef}
 
