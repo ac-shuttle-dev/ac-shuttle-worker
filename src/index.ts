@@ -436,9 +436,19 @@ async function handleOwnerDecision(
         const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
         await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
       } catch (bookingError) {
-        // Fallback to simple email if booking details can't be fetched
-        console.warn('Could not fetch booking details, using fallback email:', bookingError);
-        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env);
+        // Create minimal booking details for fallback
+        console.warn('Could not fetch booking details from Google Sheets, using minimal fallback data:', bookingError);
+        const fallbackBookingDetails = {
+          startLocation: 'Pickup Location (details unavailable)',
+          endLocation: 'Destination (details unavailable)',
+          pickupTime: 'Time TBD',
+          price: 'Price TBD',
+          passengers: '1',
+          estimatedDuration: 'Duration TBD',
+          bookingRef: tokenData.transactionId.slice(0, 10).toUpperCase(),
+          notes: 'Booking details could not be retrieved. Please contact us for full trip information.',
+        };
+        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, fallbackBookingDetails);
         await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
       }
     }
@@ -529,7 +539,7 @@ function buildCustomerNotificationEmail(
   decision: 'accepted' | 'denied',
   customer: { name: string; email: string },
   env: Env,
-  bookingDetails?: {
+  bookingDetails: {
     startLocation: string;
     endLocation: string;
     pickupTime: string;
@@ -537,50 +547,12 @@ function buildCustomerNotificationEmail(
     passengers: string;
     estimatedDuration: string;
     bookingRef: string;
+    notes?: string;
   }
 ): EmailPayload {
   const isAccepted = decision === 'accepted';
   const subject = `${isAccepted ? '🎫' : '❌'} Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
-  
-  if (!bookingDetails) {
-    // Fallback to simple email if no booking details available
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking ${isAccepted ? 'Confirmed' : 'Update'} - AC Shuttles</title>
-</head>
-<body style="margin: 0; padding: 20px; background-color: #f8f9fa; font-family: Arial, sans-serif;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 8px;">
-        <h1 style="color: ${isAccepted ? '#16a34a' : '#dc2626'};">${isAccepted ? '✅ Booking Confirmed!' : '❌ Booking Update'}</h1>
-        <p>Dear ${escapeHtml(customer.name)},</p>
-        ${isAccepted 
-          ? `<p>Your shuttle booking has been confirmed. Our driver will contact you shortly.</p>
-             <p><strong>Driver Contact:</strong><br>
-             Name: ${env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver'}<br>
-             Phone: <a href="tel:${env.DRIVER_CONTACT_PHONE}">${env.DRIVER_CONTACT_PHONE}</a><br>
-             Email: <a href="mailto:${env.DRIVER_CONTACT_EMAIL}">${env.DRIVER_CONTACT_EMAIL}</a></p>`
-          : `<p>We regret that we cannot accommodate your shuttle booking at this time. Please contact us at <a href="tel:${env.DRIVER_CONTACT_PHONE}">${env.DRIVER_CONTACT_PHONE}</a> for alternatives.</p>`
-        }
-        <p>Thank you for choosing AC Shuttles!</p>
-    </div>
-</body>
-</html>`;
 
-    return {
-      from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
-      to: customer.email,
-      subject,
-      html,
-      text: isAccepted 
-        ? `Booking Confirmed!\n\nDear ${customer.name},\n\nYour shuttle booking has been confirmed. Our driver will contact you shortly.\n\nDriver Contact:\nName: ${env.DRIVER_CONTACT_NAME}\nPhone: ${env.DRIVER_CONTACT_PHONE}\nEmail: ${env.DRIVER_CONTACT_EMAIL}\n\nThank you for choosing AC Shuttles!`
-        : `Booking Update\n\nDear ${customer.name},\n\nWe regret that we cannot accommodate your shuttle booking at this time. Please contact us at ${env.DRIVER_CONTACT_PHONE} for alternatives.\n\nThank you for considering AC Shuttles.`,
-      tags: [`booking-${decision}`, "customer-notification"],
-    };
-  }
-
-  // Use ticket-style templates with full booking details
   if (isAccepted) {
     const templateData: CustomerConfirmationData = {
       startLocation: bookingDetails.startLocation,
