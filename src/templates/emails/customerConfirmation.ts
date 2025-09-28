@@ -15,9 +15,7 @@ export interface CustomerConfirmationData {
   startLocation: string;  // Full physical address (e.g., "1000 Boardwalk, Atlantic City, NJ 08401")
   endLocation: string;    // Full physical address (e.g., "101 Atlantic City International Airport, Egg Harbor Township, NJ 08234")
   pickupTime: string;
-  arrivalTime: string;
   pickupDate: string;
-  arrivalDate: string;
   price: string;
   passengers: string;
   estimatedDuration: string;

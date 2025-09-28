@@ -430,10 +430,17 @@ async function handleOwnerDecision(
     
     // Send customer notification
     if (!env.RESEND_DRY_RUN || env.RESEND_DRY_RUN.toLowerCase() !== "true") {
-      // TODO: Fetch full booking details from Google Sheets using tokenData.transactionId
-      // For now, use the simple fallback version
-      const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env);
-      await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
+      try {
+        // Fetch full booking details from Google Sheets
+        const bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
+        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
+        await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
+      } catch (bookingError) {
+        // Fallback to simple email if booking details can't be fetched
+        console.warn('Could not fetch booking details, using fallback email:', bookingError);
+        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env);
+        await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
+      }
     }
     
     return new Response(
@@ -465,6 +472,57 @@ async function handleOwnerDecision(
       { status: 400, headers: { 'Content-Type': 'text/html' } }
     );
   }
+}
+
+async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
+  startLocation: string;
+  endLocation: string;
+  pickupTime: string;
+  price: string;
+  passengers: string;
+  estimatedDuration: string;
+  bookingRef: string;
+  notes?: string;
+}> {
+  const primarySheetId = env.GOOGLE_SHEET_ID_PRIMARY;
+  if (!primarySheetId) {
+    throw new Error("Missing GOOGLE_SHEET_ID_PRIMARY");
+  }
+
+  if (!env.GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT secret");
+  }
+
+  const sheetsClient = new GoogleSheetsClient({
+    credentialsJson: env.GOOGLE_SERVICE_ACCOUNT,
+  });
+
+  const primaryRange = env.GOOGLE_SHEET_RANGE_PRIMARY ?? "Sheet1!A:Z";
+
+  // Read all rows to find the matching transaction ID
+  const rows = await sheetsClient.readRange({
+    sheetId: primarySheetId,
+    range: primaryRange,
+  });
+
+  // Find the row with matching transaction ID (column A, index 0)
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === transactionId) {
+      const row = rows[i];
+      return {
+        startLocation: row[6] as string || '',
+        endLocation: row[7] as string || '',
+        pickupTime: row[8] as string || '',
+        estimatedDuration: row[10] as string || '',
+        passengers: row[11] as string || '',
+        price: row[12] as string || '',
+        notes: (row[14] as string) || undefined,
+        bookingRef: transactionId.slice(0, 10).toUpperCase(),
+      };
+    }
+  }
+
+  throw new Error(`Transaction ID ${transactionId} not found in sheets`);
 }
 
 function buildCustomerNotificationEmail(
@@ -537,6 +595,7 @@ function buildCustomerNotificationEmail(
       driverName: env.DRIVER_CONTACT_NAME || 'AC Shuttles Driver',
       driverPhone: env.DRIVER_CONTACT_PHONE || '',
       driverEmail: env.DRIVER_CONTACT_EMAIL || '',
+      notes: bookingDetails.notes,
       bookingRef: bookingDetails.bookingRef,
     };
     
@@ -562,6 +621,7 @@ function buildCustomerNotificationEmail(
       customerEmail: customer.email,
       contactPhone: env.DRIVER_CONTACT_PHONE || '',
       contactEmail: env.DRIVER_CONTACT_EMAIL || '',
+      reason: undefined, // Could add a custom reason from the environment or form
       bookingRef: bookingDetails.bookingRef,
     };
     
