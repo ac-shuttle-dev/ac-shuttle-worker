@@ -133,36 +133,50 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
         
         /* Route Display */
         .route-section {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             margin-bottom: 24px;
-            padding: 20px 16px;
             background: #f0fdf4;
             border-radius: 12px;
             border: 2px solid #bbf7d0;
-            min-height: 80px;
+            overflow: hidden;
         }
         
-        .location-box {
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        
+        .route-cell {
+            width: 45%;
+            padding: 20px 12px;
             text-align: center;
-            flex: 1;
+            vertical-align: middle;
+            border: none;
         }
         
+        .route-arrow-cell {
+            width: 10%;
+            padding: 10px;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+        }
         
         .location-name {
-            font-size: 16px;
+            font-size: 18px;
             color: #333;
             font-weight: 600;
-            line-height: 1.4;
-            padding: 12px 8px;
-            text-align: center;
+            line-height: 1.3;
+            word-wrap: break-word;
+            hyphens: auto;
         }
         
         .route-arrow {
-            margin: 0 16px;
-            font-size: 20px;
+            font-size: 24px;
             color: #22c55e;
+            display: block;
         }
         
         /* Pickup Time */
@@ -176,60 +190,72 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
         }
         
         .time-label {
-            font-size: 14px;
+            font-size: 16px;
             color: #16a34a;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-weight: 700;
         }
         
         .time-value {
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 900;
             color: #16a34a;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            line-height: 1.1;
         }
         
         .date-value {
-            font-size: 16px;
+            font-size: 20px;
             color: #333;
             font-weight: 600;
         }
         
         /* Details Grid */
         .details-grid {
-            display: flex;
-            margin-bottom: 20px;
-            border: 1px solid #bbf7d0;
+            margin-bottom: 24px;
+            border: 2px solid #bbf7d0;
             border-radius: 8px;
             overflow: hidden;
         }
         
-        .detail-box {
-            flex: 1;
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        
+        .detail-cell {
+            width: 50%;
             text-align: center;
-            padding: 16px 8px;
+            padding: 20px 12px;
+            vertical-align: middle;
+            border: none;
             border-right: 1px solid #bbf7d0;
         }
         
-        .detail-box:last-child {
+        .detail-cell:last-child {
             border-right: none;
         }
         
         .detail-label {
-            font-size: 10px;
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             font-weight: 600;
+            display: block;
         }
         
         .detail-value {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 700;
             color: #16a34a;
+            line-height: 1.2;
         }
         
         /* Information Sections */
@@ -242,18 +268,18 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
         }
         
         .info-title {
-            font-size: 12px;
+            font-size: 14px;
             color: #16a34a;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-weight: 700;
         }
         
         .info-content {
             color: #333;
-            font-size: 14px;
-            line-height: 1.4;
+            font-size: 16px;
+            line-height: 1.5;
         }
         
         .contact-item {
@@ -370,20 +396,27 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                 padding: 10px;
             }
             
-            .route-section {
-                flex-direction: column;
-                padding: 16px;
-                min-height: auto;
+            .route-table {
+                table-layout: auto;
             }
             
-            .route-arrow {
-                margin: 12px 0;
-                transform: rotate(90deg);
+            .route-cell {
+                width: 50%;
+                padding: 16px 8px;
+            }
+            
+            .route-arrow-cell {
+                width: auto;
+                padding: 8px;
             }
             
             .location-name {
-                font-size: 14px;
-                padding: 8px 4px;
+                font-size: 16px;
+                line-height: 1.2;
+            }
+            
+            .route-arrow {
+                font-size: 20px;
             }
             
             .pickup-time-section {
@@ -391,26 +424,29 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
             }
             
             .time-value {
-                font-size: 20px;
+                font-size: 28px;
             }
             
             .date-value {
-                font-size: 14px;
+                font-size: 18px;
             }
             
-            .details-grid {
-                flex-direction: column;
+            .details-table {
+                table-layout: auto;
             }
             
-            .detail-box {
-                border-right: none;
-                border-bottom: 1px solid #bbf7d0;
+            .detail-cell {
+                width: 50%;
+                padding: 16px 8px;
             }
             
-            .detail-box:last-child {
-                border-bottom: none;
+            .detail-value {
+                font-size: 18px;
             }
             
+            .info-content {
+                font-size: 15px;
+            }
             
             .ticket-body {
                 padding: 16px;
@@ -438,13 +474,19 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
             <div class="ticket-body">
                 <!-- Route Display -->
                 <div class="route-section">
-                    <div class="location-box">
-                        <div class="location-name">${data.startLocation}</div>
-                    </div>
-                    <div class="route-arrow">🚐</div>
-                    <div class="location-box">
-                        <div class="location-name">${data.endLocation}</div>
-                    </div>
+                    <table class="route-table" width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                            <td class="route-cell" width="45%" align="center" valign="middle">
+                                <div class="location-name">${data.startLocation}</div>
+                            </td>
+                            <td class="route-arrow-cell" width="10%" align="center" valign="middle">
+                                <div class="route-arrow">🚐</div>
+                            </td>
+                            <td class="route-cell" width="45%" align="center" valign="middle">
+                                <div class="location-name">${data.endLocation}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Pickup Time -->
@@ -456,14 +498,18 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                 
                 <!-- Details Grid -->
                 <div class="details-grid">
-                    <div class="detail-box">
-                        <div class="detail-label">Passengers</div>
-                        <div class="detail-value">${data.passengers}</div>
-                    </div>
-                    <div class="detail-box">
-                        <div class="detail-label">Fare</div>
-                        <div class="detail-value">${data.price}</div>
-                    </div>
+                    <table class="details-table" width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                            <td class="detail-cell" width="50%" align="center" valign="middle">
+                                <div class="detail-label">Passengers</div>
+                                <div class="detail-value">${data.passengers}</div>
+                            </td>
+                            <td class="detail-cell" width="50%" align="center" valign="middle">
+                                <div class="detail-label">Fare</div>
+                                <div class="detail-value">${data.price}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Driver Details -->

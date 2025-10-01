@@ -8,6 +8,7 @@
 export { generateOwnerNotificationEmail, type OwnerNotificationData } from './ownerNotification';
 export { generateCustomerConfirmationEmail, type CustomerConfirmationData } from './customerConfirmation';
 export { generateCustomerDenialEmail, type CustomerDenialData } from './customerDenial';
+export { generateOwnerDeliveryNotificationEmail, type OwnerDeliveryNotificationData } from './ownerDeliveryNotification';
 
 // Re-export utility functions
 export {

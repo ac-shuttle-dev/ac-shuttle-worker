@@ -48,10 +48,12 @@ import {
   generateOwnerNotificationEmail, 
   generateCustomerConfirmationEmail, 
   generateCustomerDenialEmail,
+  generateOwnerDeliveryNotificationEmail,
   formatTicketDate,
   formatTicketTime,
   type OwnerNotificationData,
   type CustomerConfirmationData,
+  type OwnerDeliveryNotificationData,
   type CustomerDenialData 
 } from "./templates/emails";
 
@@ -63,6 +65,7 @@ interface Env extends SecurityEnv, CoordinationEnv {
   CUSTOMER_FROM_EMAIL: string;
   OWNER_EMAIL: string;
   RESEND_DRY_RUN?: string;
+  RESEND_WEBHOOK_SECRET?: string;
   VERBOSE_LOGGING?: string;
   TOKEN_TTL_MINUTES?: string;
 }
@@ -78,6 +81,11 @@ export default {
     
     if (url.pathname.startsWith('/deny/')) {
       return handleOwnerDecision(request, env, 'denied');
+    }
+    
+    // Handle Resend delivery webhook
+    if (url.pathname === '/webhooks/resend' && request.method === 'POST') {
+      return handleResendWebhook(request, env);
     }
     
     // Default webhook handling
@@ -434,6 +442,15 @@ async function handleOwnerDecision(
         // Fetch full booking details from Google Sheets
         const bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
         const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
+        
+        // Add tracking metadata for delivery confirmation
+        customerEmail.tags = {
+          ...customerEmail.tags,
+          type: 'customer_notification',
+          transaction_id: tokenData.transactionId,
+          notification_type: decision
+        };
+        
         await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
       } catch (bookingError) {
         // Create minimal booking details for fallback
@@ -449,6 +466,15 @@ async function handleOwnerDecision(
           notes: 'Booking details could not be retrieved. Please contact us for full trip information.',
         };
         const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, fallbackBookingDetails);
+        
+        // Add tracking metadata for delivery confirmation
+        customerEmail.tags = {
+          ...customerEmail.tags,
+          type: 'customer_notification',
+          transaction_id: tokenData.transactionId,
+          notification_type: decision
+        };
+        
         await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
       }
     }
@@ -488,10 +514,12 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
   startLocation: string;
   endLocation: string;
   pickupTime: string;
+  pickupDate?: string;
   price: string;
   passengers: string;
   estimatedDuration: string;
   bookingRef: string;
+  customerName?: string;
   notes?: string;
 }> {
   const primarySheetId = env.GOOGLE_SHEET_ID_PRIMARY;
@@ -523,9 +551,11 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
         startLocation: row[6] as string || '',
         endLocation: row[7] as string || '',
         pickupTime: row[8] as string || '',
+        pickupDate: formatTicketDate(row[8] as string || ''),
         estimatedDuration: row[10] as string || '',
         passengers: row[11] as string || '',
         price: row[12] as string || '',
+        customerName: row[3] as string || '',
         notes: (row[14] as string) || undefined,
         bookingRef: transactionId.slice(0, 10).toUpperCase(),
       };
@@ -834,7 +864,7 @@ type EmailPayload = {
   subject: string;
   html: string;
   text: string;
-  tags?: string[];
+  tags?: string[] | Record<string, string>;
   replyTo?: string;
   headers?: Record<string, string>;
 };
@@ -1049,9 +1079,16 @@ function escapeHtml(value: string): string {
 async function sendEmail(
   apiKey: string,
   payload: EmailPayload,
-  verbose: boolean
+  verbose: boolean,
+  enableTracking: boolean = true
 ): Promise<ResendResult> {
-  const tagObjects = payload.tags?.map((tag) => ({ name: tag }));
+  // Handle both string array and object formats for tags
+  let tagObjects: { name: string }[] | undefined;
+  if (Array.isArray(payload.tags)) {
+    tagObjects = payload.tags.map((tag) => ({ name: tag }));
+  } else if (payload.tags && typeof payload.tags === 'object') {
+    tagObjects = Object.entries(payload.tags).map(([key, value]) => ({ name: `${key}:${value}` }));
+  }
 
   const resendPayload: Record<string, unknown> = {
     from: payload.from,
@@ -1065,14 +1102,19 @@ async function sendEmail(
   };
 
   // Determine if this is for owner or customer based on tags
-  const isCustomerNotification = payload.tags?.some(tag => tag.includes('customer'));
+  const tagArray = Array.isArray(payload.tags) 
+    ? payload.tags 
+    : payload.tags 
+      ? Object.entries(payload.tags).map(([k,v]) => `${k}:${v}`)
+      : [];
+  const isCustomerNotification = tagArray.some(tag => tag.includes('customer'));
   const logMessage = isCustomerNotification ? "sending customer notification" : "sending owner alert";
   const alertType = isCustomerNotification ? "Booking Decision Notification" : "New Booking Request";
   
   logVerbose(verbose, logMessage, {
     recipient: payload.to,
     alertType, 
-    tags: payload.tags ?? [],
+    tags: tagArray,
   });
 
   const response = await fetch(RESEND_API_URL, {
@@ -1102,6 +1144,96 @@ async function sendEmail(
   });
 
   return result;
+}
+
+async function handleResendWebhook(request: Request, env: Env): Promise<Response> {
+  try {
+    const payload = await request.json() as any;
+    
+    // Verify webhook signature if configured
+    if (env.RESEND_WEBHOOK_SECRET) {
+      const signature = request.headers.get('resend-signature');
+      if (!signature) {
+        return new Response('Missing signature', { status: 401 });
+      }
+      
+      // Verify the signature (Resend uses HMAC-SHA256)
+      const body = await request.text();
+      const expectedSignature = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(env.RESEND_WEBHOOK_SECRET + body)
+      );
+      
+      // Compare signatures
+      const expectedHex = Array.from(new Uint8Array(expectedSignature))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+        
+      if (signature !== expectedHex) {
+        return new Response('Invalid signature', { status: 401 });
+      }
+    }
+    
+    // Handle email delivery events
+    if (payload.type === 'email.delivered') {
+      const emailData = payload.data;
+      
+      // Extract metadata from email tags/headers to identify the booking
+      const transactionId = emailData.tags?.transaction_id || emailData.subject?.match(/AC[0-9]+/)?.[0];
+      const notificationType = emailData.tags?.notification_type;
+      const customerEmail = emailData.to?.[0]?.email;
+      
+      if (transactionId && notificationType && customerEmail && 
+          (notificationType === 'accepted' || notificationType === 'denied')) {
+        
+        // Fetch booking details to send owner notification
+        try {
+          const bookingDetails = await fetchBookingDetails(transactionId, env);
+          
+          const ownerNotificationData: OwnerDeliveryNotificationData = {
+            customerName: bookingDetails.customerName || 'Unknown',
+            customerEmail: customerEmail,
+            startLocation: bookingDetails.startLocation,
+            endLocation: bookingDetails.endLocation,
+            pickupTime: bookingDetails.pickupTime,
+            pickupDate: bookingDetails.pickupDate || formatTicketDate(new Date()),
+            notificationType: notificationType as 'accepted' | 'denied',
+            deliveredAt: new Date().toISOString(),
+            bookingRef: bookingDetails.bookingRef,
+            transactionId: transactionId
+          };
+          
+          const ownerEmail = generateOwnerDeliveryNotificationEmail(ownerNotificationData);
+          
+          // Send delivery confirmation to owner
+          if (env.OWNER_EMAIL && env.RESEND_API_KEY) {
+            await sendEmail(env.RESEND_API_KEY, {
+              to: env.OWNER_EMAIL,
+              subject: `Customer Notification Delivered - ${bookingDetails.bookingRef}`,
+              html: ownerEmail.html,
+              text: ownerEmail.text,
+              tags: {
+                type: 'owner_delivery_notification',
+                transaction_id: transactionId,
+                notification_type: notificationType
+              }
+            }, isVerbose(env), false); // Don't track delivery for delivery notifications
+          }
+          
+          console.log(`Delivery notification sent for ${transactionId} (${notificationType})`);
+          
+        } catch (error) {
+          console.error(`Failed to send delivery notification for ${transactionId}:`, error);
+        }
+      }
+    }
+    
+    return new Response('OK', { status: 200 });
+    
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    return new Response('Internal error', { status: 500 });
+  }
 }
 
 function isVerbose(env: { VERBOSE_LOGGING?: string }): boolean {
