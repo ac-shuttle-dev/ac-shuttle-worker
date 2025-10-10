@@ -59,6 +59,7 @@ import {
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 const DEFAULT_TOKEN_TTL_MINUTES = 60;
+const DEFAULT_DECISION_MIN_AGE_MS = 2000;
 
 interface Env extends SecurityEnv, CoordinationEnv {
   RESEND_API_KEY: string;
@@ -73,6 +74,19 @@ interface Env extends SecurityEnv, CoordinationEnv {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === 'OPTIONS') {
+      return handleCorsPreflight(request);
+    }
+
+    if (url.pathname === '/favicon.ico') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    }
     
     // Handle accept/deny routes
     if (url.pathname.startsWith('/accept/')) {
@@ -89,6 +103,7 @@ export default {
     }
     
     // Default webhook handling
+    const origin = request.headers.get('Origin');
     const verbose = isVerbose(env);
     const requestMeta = buildRequestMeta(request);
     
@@ -115,7 +130,7 @@ export default {
     } catch (error) {
       if (error instanceof Response) {
         await logFailure("security", error, requestMeta);
-        return error;
+        return applyCors(error, origin);
       }
       console.error("Security layer failure", error);
       await logRequestEvent("failed", {
@@ -124,7 +139,7 @@ export default {
         status: 500,
         reason: "Unhandled security exception",
       });
-      return new Response("Internal Server Error", { status: 500 });
+      return applyCors(new Response("Internal Server Error", { status: 500 }), origin);
     }
 
     requestMeta.submissionId = securityResult.submissionId;
@@ -138,7 +153,7 @@ export default {
     } catch (error) {
       if (error instanceof Response) {
         await logFailure("coordination", error, requestMeta, securityResult);
-        return error;
+        return applyCors(error, origin);
       }
       console.error("Coordination layer failure", error);
       await logRequestEvent("failed", {
@@ -149,7 +164,7 @@ export default {
         payload: securityResult.body,
         rawBody: securityResult.rawBody,
       });
-      return new Response("Internal Server Error", { status: 500 });
+      return applyCors(new Response("Internal Server Error", { status: 500 }), origin);
     }
 
     logVerbose(verbose, "ride booking processed", {
@@ -203,7 +218,7 @@ export default {
           dryRun,
           receivedAt,
         });
-        return Response.json(
+        return applyCors(Response.json(
           {
             ok: false,
             dryRun,
@@ -211,7 +226,7 @@ export default {
             error: "Failed to send notification",
           },
           { status: 502 }
-        );
+        ), origin);
       }
     }
 
@@ -251,7 +266,7 @@ export default {
       rayId: requestMeta.rayId,
     });
 
-    return Response.json(
+    return applyCors(Response.json(
       {
         ok: true,
         dryRun,
@@ -259,7 +274,7 @@ export default {
         resendId: resendResult?.id ?? null,
       },
       { status: 200 }
-    );
+    ), origin);
   },
 };
 
@@ -271,6 +286,48 @@ interface DecisionToken {
   createdAt: string;
   usedAt?: string;
 }
+
+class DecisionAlreadyMadeError extends Error {
+  constructor(
+    public readonly status: string,
+    public readonly tokenData: DecisionToken
+  ) {
+    super(`Decision already recorded: ${status}`);
+    this.name = 'DecisionAlreadyMadeError';
+  }
+}
+
+class TokenTooYoungError extends Error {
+  constructor(
+    public readonly minAgeMs: number,
+    public readonly ageMs: number,
+    public readonly tokenData: DecisionToken
+  ) {
+    super(`Decision link activated too soon (${ageMs}ms < ${minAgeMs}ms)`);
+    this.name = 'TokenTooYoungError';
+  }
+}
+
+const PREFETCH_USER_AGENTS: RegExp[] = [
+  /GoogleImageProxy/i,
+  /Google-Read-Aloud/i,
+  /Google-InspectionTool/i,
+  /facebookexternalhit/i,
+  /Facebot/i,
+  /Twitterbot/i,
+  /Slackbot-LinkExpanding/i,
+  /Slackbot/i,
+  /LinkedInBot/i,
+  /WhatsApp/i,
+  /TelegramBot/i,
+  /Discordbot/i,
+  /SkypeUriPreview/i,
+  /Outlook/i,
+  /Chrome-Lighthouse/i,
+  /PageAnalyzer/i,
+  /prerender/i,
+  /PhantomJS/i,
+];
 
 async function generateDecisionTokens(
   transactionId: string,
@@ -323,6 +380,15 @@ async function validateAndUseToken(
     throw new Error('Token has already been used');
   }
   
+  const minAgeMs = getDecisionMinAgeMs(env);
+  const createdAtMs = Date.parse(tokenData.createdAt);
+  if (Number.isFinite(createdAtMs) && minAgeMs > 0) {
+    const ageMs = Date.now() - createdAtMs;
+    if (ageMs < minAgeMs) {
+      throw new TokenTooYoungError(minAgeMs, ageMs, tokenData);
+    }
+  }
+
   // Check Google Sheets status to see if booking is still "Pending Review"
   const sheetsClient = new GoogleSheetsClient({
     credentialsJson: env.GOOGLE_SERVICE_ACCOUNT,
@@ -349,7 +415,7 @@ async function validateAndUseToken(
   }
   
   if (currentStatus !== "Pending Review") {
-    throw new Error(`Booking has already been ${currentStatus.toLowerCase()}. Links are no longer valid.`);
+    throw new DecisionAlreadyMadeError(currentStatus, tokenData);
   }
   
   // Mark token as used
@@ -395,6 +461,19 @@ async function handleOwnerDecision(
     );
   }
   
+  if (isPrefetchRequest(request)) {
+    logVerbose(isVerbose(env), 'owner decision prefetch blocked', {
+      token: token.slice(0, 12),
+      decision,
+      userAgent: request.headers.get('user-agent'),
+    });
+
+    return new Response(
+      renderPrefetchPage(decision),
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    );
+  }
+
   try {
     // Validate and use the one-time token
     const tokenData = await validateAndUseToken(token, decision, env.SECURITY_STATE, env);
@@ -412,13 +491,21 @@ async function handleOwnerDecision(
       name: tokenData.customerName,
       email: tokenData.customerEmail,
     };
-    
+
+    const decisionMetadata = buildDecisionAuditMetadata({
+      request,
+      decision,
+      token,
+      tokenData,
+    });
+
     // Check current booking status in Google Sheets and attempt to update
     const newDecisionStatus = decision === 'accepted' ? 'Accepted' : 'Denied';
     const statusResult = await checkAndUpdateBookingStatus(
       tokenData.transactionId,
       newDecisionStatus,
-      env
+      env,
+      { metadata: decisionMetadata }
     );
     
     // If a decision was already made (current status is not the new decision and not "Pending Review"), 
@@ -438,44 +525,50 @@ async function handleOwnerDecision(
     
     // Send customer notification
     if (!env.RESEND_DRY_RUN || env.RESEND_DRY_RUN.toLowerCase() !== "true") {
+      let bookingDetails: Awaited<ReturnType<typeof fetchBookingDetails>>;
       try {
-        // Fetch full booking details from Google Sheets
-        const bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
-        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
-        
-        // Add tracking metadata for delivery confirmation
-        customerEmail.tags = {
-          ...customerEmail.tags,
-          type: 'customer_notification',
-          transaction_id: tokenData.transactionId,
-          notification_type: decision
-        };
-        
-        await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
+        bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
       } catch (bookingError) {
-        // Create minimal booking details for fallback
         console.warn('Could not fetch booking details from Google Sheets, using minimal fallback data:', bookingError);
-        const fallbackBookingDetails = {
+        bookingDetails = {
           startLocation: 'Pickup Location (details unavailable)',
           endLocation: 'Destination (details unavailable)',
           pickupTime: 'Time TBD',
+          pickupDate: formatTicketDate(new Date().toISOString()),
           price: 'Price TBD',
           passengers: '1',
           estimatedDuration: 'Duration TBD',
           bookingRef: tokenData.transactionId.slice(0, 10).toUpperCase(),
+          customerName: tokenData.customerName,
           notes: 'Booking details could not be retrieved. Please contact us for full trip information.',
         };
-        const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, fallbackBookingDetails);
-        
-        // Add tracking metadata for delivery confirmation
-        customerEmail.tags = {
-          ...customerEmail.tags,
-          type: 'customer_notification',
-          transaction_id: tokenData.transactionId,
-          notification_type: decision
-        };
-        
+      }
+
+      const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
+
+      // Add tracking metadata for delivery confirmation
+      customerEmail.tags = {
+        ...customerEmail.tags,
+        type: 'customer_notification',
+        transaction_id: tokenData.transactionId,
+        notification_type: decision
+      };
+
+      try {
         await sendEmail(env.RESEND_API_KEY, customerEmail, isVerbose(env));
+      } catch (emailError) {
+        console.error('Failed to send customer decision email:', emailError);
+        await logRequestEvent('failed', {
+          url: request.url,
+          method: request.method,
+          rayId: request.headers.get('cf-ray') ?? undefined,
+          submissionId: undefined,
+          stage: 'customer_email',
+          status: 502,
+          reason: emailError instanceof Error ? emailError.message : String(emailError),
+          customerEmail: customerDetails.email,
+          transactionId: tokenData.transactionId,
+        });
       }
     }
     
@@ -495,14 +588,35 @@ async function handleOwnerDecision(
     });
     
     console.error(`Owner decision handling error:`, error);
-    
+
+    if (error instanceof DecisionAlreadyMadeError) {
+      return new Response(
+        renderDecisionAlreadyMadePage(
+          error.status,
+          error.tokenData.transactionId,
+          error.tokenData.customerName,
+          error.tokenData.customerEmail,
+          env.OWNER_EMAIL
+        ),
+        { status: 200, headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+
+    if (error instanceof TokenTooYoungError) {
+      const waitMs = Math.max(error.minAgeMs - error.ageMs, 0);
+      return new Response(
+        renderCooldownPage(decision, waitMs, error.minAgeMs),
+        { status: 425, headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+
     if (errorMessage.includes('already been used')) {
       return new Response(
         renderErrorPage('Link Already Used', 'This booking link has already been used. Each link can only be used once for security reasons.'),
         { status: 410, headers: { 'Content-Type': 'text/html' } }
       );
     }
-    
+
     return new Response(
       renderErrorPage('Invalid Link', 'The booking link is invalid or has expired. Links are valid for 60 minutes after being sent.'),
       { status: 400, headers: { 'Content-Type': 'text/html' } }
@@ -1085,9 +1199,19 @@ async function sendEmail(
   // Handle both string array and object formats for tags
   let tagObjects: { name: string }[] | undefined;
   if (Array.isArray(payload.tags)) {
-    tagObjects = payload.tags.map((tag) => ({ name: tag }));
+    const sanitized = payload.tags
+      .map((tag) => sanitizeTagString(tag))
+      .filter((name): name is string => Boolean(name));
+    tagObjects = sanitized.length ? sanitized.map((name) => ({ name })) : undefined;
   } else if (payload.tags && typeof payload.tags === 'object') {
-    tagObjects = Object.entries(payload.tags).map(([key, value]) => ({ name: `${key}:${value}` }));
+    const sanitized = Object.entries(payload.tags)
+      .map(([key, value]) => {
+        const keyPart = sanitizeTagComponent(key, 'tag');
+        const valuePart = sanitizeTagComponent(value, 'value');
+        return keyPart && valuePart ? `${keyPart}_${valuePart}` : null;
+      })
+      .filter((name): name is string => Boolean(name));
+    tagObjects = sanitized.length ? sanitized.map((name) => ({ name })) : undefined;
   }
 
   const resendPayload: Record<string, unknown> = {
@@ -1102,11 +1226,7 @@ async function sendEmail(
   };
 
   // Determine if this is for owner or customer based on tags
-  const tagArray = Array.isArray(payload.tags) 
-    ? payload.tags 
-    : payload.tags 
-      ? Object.entries(payload.tags).map(([k,v]) => `${k}:${v}`)
-      : [];
+  const tagArray = tagObjects?.map((tag) => tag.name) ?? [];
   const isCustomerNotification = tagArray.some(tag => tag.includes('customer'));
   const logMessage = isCustomerNotification ? "sending customer notification" : "sending owner alert";
   const alertType = isCustomerNotification ? "Booking Decision Notification" : "New Booking Request";
@@ -1234,6 +1354,157 @@ async function handleResendWebhook(request: Request, env: Env): Promise<Response
     console.error('Webhook processing error:', error);
     return new Response('Internal error', { status: 500 });
   }
+}
+
+const ALLOWED_CORS_HEADERS = 'Content-Type, framer-signature, framer-webhook-submission-id';
+const ALLOWED_CORS_METHODS = 'POST, OPTIONS';
+
+function handleCorsPreflight(request: Request): Response {
+  const origin = request.headers.get('Origin');
+  const response = applyCors(new Response(null, { status: 204 }), origin);
+  response.headers.set('Access-Control-Max-Age', '86400');
+  return response;
+}
+
+function isPrefetchRequest(request: Request): boolean {
+  const purposeHeaders = ['purpose', 'sec-purpose', 'sec-fetch-purpose'];
+  for (const header of purposeHeaders) {
+    const value = request.headers.get(header);
+    if (value && value.toLowerCase().includes('prefetch')) {
+      return true;
+    }
+  }
+
+  const userAgent = request.headers.get('user-agent') ?? '';
+  return PREFETCH_USER_AGENTS.some((pattern) => pattern.test(userAgent));
+}
+
+function renderPrefetchPage(decision: 'accepted' | 'denied'): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AC Shuttles Decision Link</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .card { max-width: 520px; margin: 0 auto; background: rgba(15, 23, 42, 0.85); border-radius: 16px; padding: 32px; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.45); border: 1px solid rgba(148, 163, 184, 0.2); text-align: center; }
+    .icon { font-size: 40px; margin-bottom: 16px; }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    p { margin: 0; line-height: 1.6; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔒</div>
+    <h1>Secure Decision Link</h1>
+    <p>This preview was generated automatically. Please open the email and click the ${decision === 'accepted' ? 'accept' : 'deny'} button from your browser to complete the decision.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function getDecisionMinAgeMs(env: CoordinationEnv): number {
+  const raw = env.DECISION_MIN_AGE_MS;
+  if (raw == null || raw === '') {
+    return DEFAULT_DECISION_MIN_AGE_MS;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return DEFAULT_DECISION_MIN_AGE_MS;
+  }
+  return parsed;
+}
+
+function renderCooldownPage(decision: 'accepted' | 'denied', remainingMs: number, minAgeMs: number): string {
+  const waitSeconds = Math.max(Math.ceil(remainingMs / 100) / 10, 0.1);
+  const totalSeconds = Math.ceil(minAgeMs / 100) / 10;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AC Shuttles Decision Link</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .card { max-width: 520px; margin: 0 auto; background: rgba(15, 23, 42, 0.9); border-radius: 16px; padding: 32px; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.45); border: 1px solid rgba(148, 163, 184, 0.2); text-align: center; }
+    .icon { font-size: 40px; margin-bottom: 16px; }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    p { margin: 0; line-height: 1.6; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⏳</div>
+    <h1>Almost Ready</h1>
+    <p>This secure ${decision} link activates ${totalSeconds.toFixed(1)} seconds after delivery. Please try again in about ${waitSeconds.toFixed(1)} seconds.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function buildDecisionAuditMetadata({
+  request,
+  decision,
+  token,
+  tokenData,
+}: {
+  request: Request;
+  decision: 'accepted' | 'denied';
+  token: string;
+  tokenData: DecisionToken;
+}): string {
+  const createdAtMs = Date.parse(tokenData.createdAt);
+  const tokenAgeMs = Number.isFinite(createdAtMs) ? Date.now() - createdAtMs : undefined;
+  const metadata = {
+    source: 'owner_decision',
+    decision,
+    token_prefix: token.slice(0, 12),
+    token_age_ms: tokenAgeMs,
+    user_agent: request.headers.get('user-agent') ?? undefined,
+    ip: getRequestIp(request) ?? undefined,
+    cf_ray: request.headers.get('cf-ray') ?? undefined,
+    referer: request.headers.get('referer') ?? undefined,
+  } as Record<string, unknown>;
+
+  const cleaned = Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  );
+
+  let serialized = JSON.stringify(cleaned);
+  if (serialized.length > 900) {
+    serialized = serialized.slice(0, 900) + '…';
+  }
+  return serialized;
+}
+
+function getRequestIp(request: Request): string | undefined {
+  return (
+    request.headers.get('cf-connecting-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip') ??
+    undefined
+  );
+}
+
+function sanitizeTagComponent(input: unknown, fallback: string): string {
+  const raw = String(input ?? '').trim().toLowerCase();
+  const sanitized = raw.replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return sanitized || fallback;
+}
+
+function sanitizeTagString(input: unknown): string | null {
+  const normalized = sanitizeTagComponent(input, 'tag');
+  return normalized || null;
+}
+
+function applyCors(response: Response, origin: string | null): Response {
+  const allowOrigin = origin ?? '*';
+  response.headers.set('Access-Control-Allow-Origin', allowOrigin);
+  response.headers.set('Vary', 'Origin');
+  response.headers.set('Access-Control-Allow-Headers', ALLOWED_CORS_HEADERS);
+  response.headers.set('Access-Control-Allow-Methods', ALLOWED_CORS_METHODS);
+  return response;
 }
 
 function isVerbose(env: { VERBOSE_LOGGING?: string }): boolean {

@@ -23,6 +23,7 @@ export interface CoordinationEnv {
   DRIVER_CONTACT_NAME?: string;
   DRIVER_CONTACT_EMAIL?: string;
   DRIVER_CONTACT_PHONE?: string;
+  DECISION_MIN_AGE_MS?: string;
 }
 
 export interface SubmissionSummary {
@@ -285,10 +286,15 @@ export interface BookingStatusResult {
   rowIndex: number | null;
 }
 
+interface BookingStatusOptions {
+  metadata?: string;
+}
+
 export async function checkAndUpdateBookingStatus(
   transactionId: string,
   newStatus: 'Accepted' | 'Denied',
-  env: CoordinationEnv
+  env: CoordinationEnv,
+  options: BookingStatusOptions = {}
 ): Promise<BookingStatusResult> {
   const primarySheetId = env.GOOGLE_SHEET_ID_PRIMARY;
   if (!primarySheetId) {
@@ -371,6 +377,8 @@ export async function checkAndUpdateBookingStatus(
   const auditSheetId = env.GOOGLE_SHEET_ID_AUDIT ?? env.GOOGLE_SHEET_ID_BACKUP;
   if (auditSheetId) {
     const auditRange = env.GOOGLE_SHEET_RANGE_AUDIT ?? "Audit!A:Z";
+    const metadata = options.metadata ?? '';
+
     await sheetsClient.appendAuditEntry({
       sheetId: auditSheetId,
       range: auditRange,
@@ -378,7 +386,7 @@ export async function checkAndUpdateBookingStatus(
         transactionId,
         `status_updated_to_${newStatus.toLowerCase()}`,
         new Date().toISOString(),
-        "",
+        metadata,
       ],
     });
   }
