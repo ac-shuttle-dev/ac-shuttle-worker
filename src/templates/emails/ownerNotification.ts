@@ -23,17 +23,18 @@ export interface OwnerNotificationData {
   passengers: string;
   estimatedDuration: string;
   estimatedDistance: string;
-  
+  mapUrl?: string;  // Google Maps URL for the route
+
   // Customer details
   customerName: string;
   customerEmail: string;
   customerPhone: string | null;
-  
+
   // Additional info
   vehicleType?: string;
   notes?: string;
   bookingRef: string;
-  
+
   // Action URLs
   acceptUrl: string;
   denyUrl: string;
@@ -400,7 +401,18 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
             opacity: 0.9;
             margin-top: 4px;
         }
-        
+
+        .map-button {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .map-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+
         /* Security Notice */
         .security-notice {
             text-align: center;
@@ -591,8 +603,15 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 ❌ DECLINE RIDE
                 <div class="button-subtitle">Cancel this ticket</div>
             </a>
+
+            ${data.mapUrl ? `
+            <a href="${data.mapUrl}" class="action-button map-button" target="_blank" rel="noopener noreferrer">
+                🗺️ VIEW ROUTE MAP
+                <div class="button-subtitle">See directions on Google Maps</div>
+            </a>
+            ` : ''}
         </div>
-        
+
         <!-- Security Notice -->
         <div class="security-notice">
             <div class="security-notice-text">
@@ -636,6 +655,10 @@ ${data.endLocation}
 ${data.notes ? `SPECIAL INSTRUCTIONS:
 ====================
 ${data.notes}
+
+` : ''}${data.mapUrl ? `VIEW ROUTE MAP:
+===============
+${data.mapUrl}
 
 ` : ''}ACTION REQUIRED:
 ================

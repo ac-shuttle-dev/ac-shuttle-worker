@@ -90,26 +90,36 @@ export function generateLocationCode(address: string): string {
 
 /**
  * Format date for display in tickets
+ * Converts UTC time to the specified timezone before formatting
+ *
+ * @param dateString ISO date string (typically in UTC)
+ * @param timeZone IANA timezone (default: America/New_York)
  */
-export function formatTicketDate(dateString: string): string {
+export function formatTicketDate(dateString: string, timeZone: string = 'America/New_York'): string {
   const date = new Date(dateString);
   const options: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
-    weekday: 'short'
+    weekday: 'short',
+    timeZone
   };
   return date.toLocaleDateString('en-US', options).toUpperCase();
 }
 
 /**
  * Format time for display in tickets
+ * Converts UTC time to the specified timezone before formatting
+ *
+ * @param dateString ISO date string (typically in UTC)
+ * @param timeZone IANA timezone (default: America/New_York)
  */
-export function formatTicketTime(dateString: string): string {
+export function formatTicketTime(dateString: string, timeZone: string = 'America/New_York'): string {
   const date = new Date(dateString);
   const options: Intl.DateTimeFormatOptions = {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true
+    hour12: true,
+    timeZone
   };
   return date.toLocaleTimeString('en-US', options).toUpperCase();
 }

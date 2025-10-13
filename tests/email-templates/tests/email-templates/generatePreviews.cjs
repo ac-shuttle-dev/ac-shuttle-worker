@@ -61,8 +61,8 @@ const sampleOwnerData = {
   vehicleType: "Standard Sedan",
   notes: "Need help with two large suitcases and a car seat for 3-year-old. Will tip well for assistance.",
   bookingRef: "AC250359445",
-  acceptUrl: "https://ac-shuttle-dev-worker.goldenkey-realestate-residential.workers.dev/accept/abc123def456",
-  denyUrl: "https://ac-shuttle-dev-worker.goldenkey-realestate-residential.workers.dev/deny/xyz789ghi012"
+  acceptUrl: "https://ac-shuttle-dev-worker.acshuttles157.workers.dev/accept/abc123def456",
+  denyUrl: "https://ac-shuttle-dev-worker.acshuttles157.workers.dev/deny/xyz789ghi012"
 };
 
 const sampleConfirmationData = {

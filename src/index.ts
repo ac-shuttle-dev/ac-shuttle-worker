@@ -42,6 +42,7 @@
 
 import type { SecurityResult } from "./layers/security";
 import { validateRequest, SecurityEnv } from "./layers/security";
+import { handleTripQuoteRequest, type TripQuoteEnv } from "./workers/tripQuote";
 import { handleSubmission, CoordinationEnv, CoordinationResult, checkAndUpdateBookingStatus } from "./layers/coordination";
 import { GoogleSheetsClient } from "./integrations/googleSheets";
 import { 
@@ -61,7 +62,7 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 const DEFAULT_TOKEN_TTL_MINUTES = 60;
 const DEFAULT_DECISION_MIN_AGE_MS = 2000;
 
-interface Env extends SecurityEnv, CoordinationEnv {
+interface Env extends SecurityEnv, CoordinationEnv, TripQuoteEnv {
   RESEND_API_KEY: string;
   CUSTOMER_FROM_EMAIL: string;
   OWNER_EMAIL: string;
@@ -74,6 +75,10 @@ interface Env extends SecurityEnv, CoordinationEnv {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === '/trip/quote') {
+      return handleTripQuoteRequest(request, env);
+    }
 
     if (request.method === 'OPTIONS') {
       return handleCorsPreflight(request);
@@ -1128,7 +1133,7 @@ async function buildOwnerEmailPayload({
     env.SECURITY_STATE
   );
   
-  const baseUrl = env.WORKER_URL || 'https://ac-shuttle-dev-worker.goldenkey-realestate-residential.workers.dev';
+  const baseUrl = env.WORKER_URL || 'https://ac-shuttle-dev-worker.acshuttles157.workers.dev';
   const acceptUrl = `${baseUrl}/accept/${acceptToken}`;
   const denyUrl = `${baseUrl}/deny/${denyToken}`;
   
