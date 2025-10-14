@@ -41,6 +41,7 @@ export interface SubmissionSummary {
   submittedAt: string;
   vehicleType: string | null;
   notes: string | null;
+  mapUrl: string | null;
 }
 
 export interface CoordinationResult {
@@ -137,6 +138,7 @@ async function buildSubmissionSummary(
   const phone = optionalField(payload, ["phone", "phone_number", "contact_phone"]);
   const vehicleType = optionalField(payload, ["vehicle_type", "vehicleType"]);
   const notes = optionalField(payload, ["notes", "customer_notes", "additional_notes", "special_requests", "message"]);
+  const mapUrl = optionalField(payload, ["map_url", "mapUrl"]);
 
   const transactionId = await computeTransactionId({
     customerName,
@@ -162,6 +164,7 @@ async function buildSubmissionSummary(
     submittedAt,
     vehicleType,
     notes,
+    mapUrl,
   };
 }
 

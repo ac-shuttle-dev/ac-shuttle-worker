@@ -17,16 +17,17 @@ export interface CustomerDenialData {
   pickupTime: string;
   pickupDate: string;
   passengers: string;
-  
+  mapUrl?: string;  // Google Maps URL for the route
+
   // Customer details
   customerName: string;
   customerEmail: string;
-  
+
   // Contact details
   contactPhone: string;
   contactEmail: string;
   websiteUrl?: string;
-  
+
   // Additional info
   reason?: string;
   bookingRef: string;
@@ -129,35 +130,52 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         
         /* Route Display - Cancelled */
         .route-section {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             margin-bottom: 24px;
-            padding: 20px;
             background: #fef2f2;
             border-radius: 12px;
             border: 2px solid #fecaca;
             opacity: 0.7;
+            overflow: hidden;
         }
-        
-        .location-box {
+
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+
+        .route-cell {
+            width: 42%;
+            padding: 20px 12px;
             text-align: center;
-            flex: 1;
+            vertical-align: middle;
+            border: none;
         }
-        
+
+        .route-arrow-cell {
+            width: 16%;
+            padding: 20px 8px;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+        }
+
         .location-name {
-            font-size: 22px;
+            font-size: 18px;
             color: #333;
             font-weight: 600;
             line-height: 1.4;
-            padding: 12px 8px;
-            text-align: center;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
         }
-        
+
         .route-arrow {
-            margin: 0 16px;
             font-size: 20px;
             color: #dc2626;
+            display: block;
         }
         
         /* Pickup Time */
@@ -251,6 +269,8 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
             color: #333;
             font-size: 14px;
             line-height: 1.4;
+            word-wrap: break-word;
+            word-break: break-word;
         }
         
         .contact-item {
@@ -347,6 +367,32 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
             line-height: 1.4;
         }
         
+        /* Map Button */
+        .map-button {
+            display: block;
+            width: 100%;
+            padding: 16px 24px;
+            margin: 16px 0;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .map-button:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        .button-subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -360,43 +406,118 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
-            
-            .route-section {
-                flex-direction: column;
-                padding: 16px;
+
+            .ticket-body {
+                padding: 16px !important;
             }
-            
+
+            .route-table {
+                table-layout: auto !important;
+            }
+
+            .route-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 12px !important;
+            }
+
+            .route-arrow-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 8px !important;
+            }
+
+            .location-name {
+                font-size: 16px !important;
+            }
+
             .route-arrow {
-                margin: 12px 0;
                 transform: rotate(90deg);
+                font-size: 18px !important;
             }
-            
-            .times-section {
-                flex-direction: column;
-                gap: 12px;
+
+            .pickup-time-section {
+                padding: 16px !important;
             }
-            
+
+            .time-value {
+                font-size: 24px !important;
+            }
+
+            .date-value {
+                font-size: 17px !important;
+            }
+
             .details-grid {
                 flex-direction: column;
             }
-            
+
             .detail-box {
-                border-right: none;
-                border-bottom: 1px solid #fecaca;
+                border-right: none !important;
+                border-bottom: 1px solid #fecaca !important;
+                padding: 14px !important;
             }
-            
+
             .detail-box:last-child {
-                border-bottom: none;
+                border-bottom: none !important;
             }
-            
-            .location-code {
-                font-size: 20px;
+
+            .detail-value {
+                font-size: 20px !important;
             }
-            
+
+            .info-content {
+                font-size: 13px !important;
+            }
+
+            .header h1 {
+                font-size: 20px !important;
+            }
+
+            .cancellation-title {
+                font-size: 16px !important;
+            }
+
+            .cancellation-text {
+                font-size: 13px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 8px !important;
+            }
+
             .ticket-body {
-                padding: 16px;
+                padding: 12px !important;
+            }
+
+            .location-name {
+                font-size: 14px !important;
+            }
+
+            .time-value {
+                font-size: 22px !important;
+            }
+
+            .date-value {
+                font-size: 16px !important;
+            }
+
+            .detail-value {
+                font-size: 18px !important;
+            }
+
+            .info-content {
+                font-size: 12px !important;
+            }
+
+            .alternative-item {
+                font-size: 13px !important;
+                padding: 10px !important;
             }
         }
     </style>
@@ -404,7 +525,7 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
 <body>
     <div class="email-container">
         <div class="header">
-            <h1 style="color: #333;">🚐 AC SHUTTLES</h1>
+            <h1 style="color: #333;">AC SHUTTLES</h1>
         </div>
         
         <div class="cancellation-notice">
@@ -414,20 +535,26 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         
         <div class="ticket-card">
             <div class="ticket-header">
-                <div class="ticket-title">🎫 AC SHUTTLES TICKET</div>
-                <div class="ticket-subtitle">❌ CANCELLED</div>
+                <div class="ticket-title">AC SHUTTLES TICKET</div>
+                <div class="ticket-subtitle">CANCELLED</div>
             </div>
             
             <div class="ticket-body">
                 <!-- Route Display - Cancelled -->
                 <div class="route-section">
-                    <div class="location-box">
-                        <div class="location-name">${data.startLocation}</div>
-                    </div>
-                    <div class="route-arrow">❌</div>
-                    <div class="location-box">
-                        <div class="location-name">${data.endLocation}</div>
-                    </div>
+                    <table class="route-table" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                        <tr>
+                            <td class="route-cell" width="42%" align="center" valign="middle">
+                                <div class="location-name">${data.startLocation}</div>
+                            </td>
+                            <td class="route-arrow-cell" width="16%" align="center" valign="middle">
+                                <span class="route-arrow">X</span>
+                            </td>
+                            <td class="route-cell" width="42%" align="center" valign="middle">
+                                <div class="location-name">${data.endLocation}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Pickup Time -->
@@ -451,7 +578,7 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                 
                 <!-- Cancellation Notice -->
                 <div class="info-section">
-                    <div class="info-title">📋 Cancellation Notice</div>
+                    <div class="info-title">CANCELLATION NOTICE</div>
                     <div class="info-content">
                         We regret that we cannot accommodate your ride request due to ${reason}. We appreciate your understanding.
                     </div>
@@ -459,19 +586,16 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                 
                 <!-- Alternative Options -->
                 <div class="info-section">
-                    <div class="info-title">🔄 Alternative Options</div>
+                    <div class="info-title">ALTERNATIVE OPTIONS</div>
                     <div class="info-content">
                         <div class="alternative-item">
-                            <span class="alternative-icon">📞</span>
                             <strong>Call us:</strong> <a href="tel:${data.contactPhone}" class="contact-link">${data.contactPhone}</a>
                         </div>
                         <div class="alternative-item">
-                            <span class="alternative-icon">📧</span>
                             <strong>Email us:</strong> <a href="mailto:${data.contactEmail}" class="contact-link">${data.contactEmail}</a>
                         </div>
                         ${data.websiteUrl ? `
                         <div class="alternative-item">
-                            <span class="alternative-icon">🌐</span>
                             <strong>Website:</strong> <a href="${data.websiteUrl}" class="contact-link">${data.websiteUrl}</a>
                         </div>
                         ` : ''}
@@ -484,8 +608,14 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
                         </div>
                     </div>
                 </div>
-                
-                
+
+                ${data.mapUrl ? `
+                <a href="${data.mapUrl}" class="map-button" target="_blank" rel="noopener noreferrer">
+                    VIEW REQUESTED ROUTE
+                    <div class="button-subtitle">See the route you requested on Google Maps</div>
+                </a>
+                ` : ''}
+
                 <!-- Perforated Line -->
                 <div class="perforation"></div>
                 
@@ -500,15 +630,15 @@ export function generateCustomerDenialEmail(data: CustomerDenialData): { html: s
         <!-- Footer -->
         <div class="footer">
             We appreciate your understanding and hope to serve you in the future.<br>
-            📞 Need help? Call ${data.contactPhone}
+            Need help? Call ${data.contactPhone}
         </div>
     </div>
 </body>
 </html>`;
 
-  const text = `🎫 AC SHUTTLES - BOOKING UPDATE
+  const text = `AC SHUTTLES - BOOKING UPDATE
 
-❌ WE CANNOT ACCOMMODATE THIS TRIP
+WE CANNOT ACCOMMODATE THIS TRIP
 We regret that we cannot accommodate your ride request at this time.
 
 ORIGINAL REQUEST:
@@ -524,15 +654,19 @@ We regret that we cannot accommodate your ride request due to ${reason}. We appr
 
 ALTERNATIVE OPTIONS:
 ====================
-📞 Call us: ${data.contactPhone}
-📧 Email us: ${data.contactEmail}
-${data.websiteUrl ? `🌐 Website: ${data.websiteUrl}\n` : ''}
+Call us: ${data.contactPhone}
+Email us: ${data.contactEmail}
+${data.websiteUrl ? `Website: ${data.websiteUrl}\n` : ''}
 We may have:
 • Alternative pickup/drop-off times
-• Different routes available  
+• Different routes available
 • Partner services that can help
 
-BOOKING REF: ${data.bookingRef}
+${data.mapUrl ? `VIEW REQUESTED ROUTE:
+=====================
+${data.mapUrl}
+
+` : ''}BOOKING REF: ${data.bookingRef}
 
 We appreciate your understanding and hope to serve you in the future.
 Need help? Call ${data.contactPhone}`;

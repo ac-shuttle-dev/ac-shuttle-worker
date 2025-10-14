@@ -27,7 +27,7 @@ export interface OwnerDeliveryNotificationData {
 export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotificationData): { html: string; text: string } {
   const statusColor = data.notificationType === 'accepted' ? '#16a34a' : '#dc2626';
   const statusText = data.notificationType === 'accepted' ? 'ACCEPTED' : 'DENIED';
-  const statusIcon = data.notificationType === 'accepted' ? '✅' : '❌';
+  const statusIcon = data.notificationType === 'accepted' ? 'ACCEPTED' : 'DENIED';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -249,12 +249,12 @@ export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotifi
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>🚐 AC SHUTTLES</h1>
+            <h1>AC SHUTTLES</h1>
         </div>
         
         <div class="status-card">
             <div class="status-header">
-                <div class="status-title">📧 DELIVERY CONFIRMATION</div>
+                <div class="status-title">DELIVERY CONFIRMATION</div>
                 <div class="status-subtitle">Customer Notification Delivered</div>
             </div>
             
@@ -269,7 +269,7 @@ export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotifi
                 </div>
                 
                 <div class="customer-section">
-                    <div class="section-title">👤 Customer Details</div>
+                    <div class="section-title">CUSTOMER DETAILS</div>
                     <div class="section-content">
                         <div><strong>Name:</strong> ${data.customerName}</div>
                         <div><strong>Email:</strong> ${data.customerEmail}</div>
@@ -277,7 +277,7 @@ export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotifi
                 </div>
                 
                 <div class="trip-details">
-                    <div class="section-title">🗺️ Trip Information</div>
+                    <div class="section-title">TRIP INFORMATION</div>
                     <div class="route-info">
                         <div class="location"><strong>From:</strong> ${data.startLocation}</div>
                         <div class="location"><strong>To:</strong> ${data.endLocation}</div>
@@ -295,7 +295,7 @@ export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotifi
                 </div>
                 
                 <div class="delivery-details">
-                    <div class="section-title">📬 Delivery Information</div>
+                    <div class="section-title">DELIVERY INFORMATION</div>
                     <div class="detail-item">
                         <span class="detail-label">Delivered At:</span> 
                         <span class="detail-value">${data.deliveredAt}</span>
@@ -320,7 +320,7 @@ export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotifi
 </body>
 </html>`;
 
-  const text = `📧 AC SHUTTLES - DELIVERY CONFIRMATION
+  const text = `AC SHUTTLES - DELIVERY CONFIRMATION
 
 ${statusIcon} CUSTOMER NOTIFICATION DELIVERED
 

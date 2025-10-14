@@ -1,3 +1,11 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /**
  * Email Template Preview Generator
  * 
@@ -7,36 +15,19 @@
  * Usage: node test/email-templates/generatePreviews.js
  */
 
-const fs = require('fs');
-const path = require('path');
 
+// Import the email template functions directly from mockTemplates
 // Import the email template functions
-// Note: We'll use dynamic imports to handle TypeScript modules
-async function loadTemplates() {
-  try {
-    // For now, we'll create mock implementations since we can't directly import TS modules
-    return {
-      generateOwnerNotificationEmail: require('./mockTemplates.cjs').generateOwnerNotificationEmail,
-      generateCustomerConfirmationEmail: require('./mockTemplates.cjs').generateCustomerConfirmationEmail,
-      generateCustomerDenialEmail: require('./mockTemplates.cjs').generateCustomerDenialEmail,
-    };
-  } catch (error) {
-    console.error('Error loading templates:', error);
-    console.log('Using mock data instead...');
-    return require('./mockTemplates.cjs');
-  }
-}
+const templates = await import('./mockTemplates.mjs');
 
-// Sample data for testing
+
+
+// Sample data for testing - using consistent contact information
 const sampleOwnerData = {
-  startLocation: "Downtown Financial District",
-  endLocation: "Los Angeles International Airport Terminal 1",
-  startLocationCode: "DTWN",
-  endLocationCode: "LAX",
+  startLocation: "1247 Washington Boulevard, Los Angeles, CA 90015",
+  endLocation: "1 World Way, Terminal 1, Los Angeles, CA 90045",
   pickupTime: "3:30 PM",
-  arrivalTime: "4:30 PM", 
   pickupDate: "DEC 15, MON",
-  arrivalDate: "DEC 15, MON",
   price: "$45.00",
   passengers: "2",
   estimatedDuration: "25 minutes",
@@ -44,100 +35,63 @@ const sampleOwnerData = {
   customerName: "John Smith",
   customerEmail: "john.smith@email.com",
   customerPhone: "(555) 123-4567",
-  pickupAddress: {
-    street: "1247 Washington Boulevard",
-    suite: "Suite 400",
-    city: "Los Angeles",
-    state: "CA",
-    zipCode: "90015"
-  },
-  dropoffAddress: {
-    street: "1 World Way, Terminal 1",
-    suite: "Departure Level",
-    city: "Los Angeles", 
-    state: "CA",
-    zipCode: "90045"
-  },
   vehicleType: "Standard Sedan",
-  notes: "Need help with two large suitcases and a car seat for 3-year-old. Will tip well for assistance.",
+  notes: "Need help with two large suitcases and a car seat for 3-year-old.",
   bookingRef: "AC250359445",
   acceptUrl: "https://ac-shuttle-dev-worker.acshuttles157.workers.dev/accept/abc123def456",
-  denyUrl: "https://ac-shuttle-dev-worker.acshuttles157.workers.dev/deny/xyz789ghi012"
+  denyUrl: "https://ac-shuttle-dev-worker.acshuttles157.workers.dev/deny/xyz789ghi012",
+  mapUrl: "https://maps.google.com/maps?q=1247+Washington+Boulevard+to+LAX"
 };
 
 const sampleConfirmationData = {
-  startLocation: "Downtown Financial District",
-  endLocation: "Los Angeles International Airport Terminal 1", 
-  startLocationCode: "DTWN",
-  endLocationCode: "LAX",
+  startLocation: "1247 Washington Boulevard, Los Angeles, CA 90015",
+  endLocation: "1 World Way, Terminal 1, Los Angeles, CA 90045",
   pickupTime: "3:30 PM",
-  arrivalTime: "4:30 PM",
-  pickupDate: "DEC 15, MON", 
-  arrivalDate: "DEC 15, MON",
+  pickupDate: "DEC 15, MON",
   price: "$45.00",
   passengers: "2",
   estimatedDuration: "25 minutes",
   customerName: "John Smith",
   customerEmail: "john.smith@email.com",
-  driverName: "Mike Johnson",
-  driverPhone: "(555) 987-6543",
-  driverEmail: "mike@acshuttles.com",
-  pickupAddress: {
-    street: "1247 Washington Boulevard",
-    suite: "Suite 400", 
-    city: "Los Angeles",
-    state: "CA",
-    zipCode: "90015"
-  },
-  dropoffAddress: {
-    street: "1 World Way, Terminal 1",
-    suite: "Departure Level",
-    city: "Los Angeles",
-    state: "CA", 
-    zipCode: "90045"
-  },
+  driverName: "AC Shuttles Driver",
+  driverPhone: "(609) 555-1234",
+  driverEmail: "driver@acshuttles.com",
   notes: "Car seat and luggage assistance needed",
-  bookingRef: "AC250359445"
+  bookingRef: "AC250359445",
+  mapUrl: "https://maps.google.com/maps?q=1247+Washington+Boulevard+to+LAX"
 };
 
 const sampleDenialData = {
-  startLocation: "Downtown Financial District",
-  endLocation: "Los Angeles International Airport Terminal 1",
-  startLocationCode: "DTWN", 
-  endLocationCode: "LAX",
+  startLocation: "1247 Washington Boulevard, Los Angeles, CA 90015",
+  endLocation: "1 World Way, Terminal 1, Los Angeles, CA 90045",
   pickupTime: "3:30 PM",
-  arrivalTime: "4:30 PM",
   pickupDate: "DEC 15, MON",
-  arrivalDate: "DEC 15, MON", 
   passengers: "2",
-  estimatedDuration: "25 minutes",
   customerName: "John Smith",
   customerEmail: "john.smith@email.com",
-  contactPhone: "(555) 987-6543",
-  contactEmail: "bookings@acshuttles.com",
-  websiteUrl: "https://acshuttles.com",
-  pickupAddress: {
-    street: "1247 Washington Boulevard",
-    suite: "Suite 400",
-    city: "Los Angeles", 
-    state: "CA",
-    zipCode: "90015"
-  },
-  dropoffAddress: {
-    street: "1 World Way, Terminal 1", 
-    suite: "Departure Level",
-    city: "Los Angeles",
-    state: "CA",
-    zipCode: "90045"
-  },
-  reason: "Schedule conflict or route limitations",
-  bookingRef: "AC250359445"
+  contactPhone: "(609) 555-1234",
+  contactEmail: "contact@acshuttles.com",
+  reason: "schedule conflict",
+  bookingRef: "AC250359445",
+  mapUrl: "https://maps.google.com/maps?q=1247+Washington+Boulevard+to+LAX"
+};
+
+const sampleSubmissionAckData = {
+  customerName: "John Smith",
+  customerEmail: "john.smith@email.com",
+  startLocation: "1247 Washington Boulevard, Los Angeles, CA 90015",
+  endLocation: "1 World Way, Terminal 1, Los Angeles, CA 90045",
+  pickupTime: "3:30 PM",
+  pickupDate: "DEC 15, MON",
+  bookingRef: "AC250359445",
+  contactPhone: "(609) 555-1234",
+  contactEmail: "contact@acshuttles.com"
 };
 
 async function generatePreviewFiles() {
-  console.log('🎫 Generating email template previews...');
+  console.log('Generating email template previews...');
   
-  const templates = await loadTemplates();
+  
   const outputDir = path.join(__dirname, 'previews');
   
   // Create output directory
@@ -147,7 +101,7 @@ async function generatePreviewFiles() {
   
   try {
     // Generate owner notification preview
-    console.log('📧 Generating owner notification preview...');
+    console.log('Generating owner notification preview...');
     const ownerEmail = templates.generateOwnerNotificationEmail(sampleOwnerData);
     const ownerPreviewHtml = createPreviewWrapper(
       'Owner Notification Email',
@@ -157,7 +111,7 @@ async function generatePreviewFiles() {
     fs.writeFileSync(path.join(outputDir, 'owner-notification.html'), ownerPreviewHtml);
     
     // Generate customer confirmation preview  
-    console.log('✅ Generating customer confirmation preview...');
+    console.log('Generating customer confirmation preview...');
     const confirmationEmail = templates.generateCustomerConfirmationEmail(sampleConfirmationData);
     const confirmationPreviewHtml = createPreviewWrapper(
       'Customer Confirmation Email',
@@ -167,30 +121,41 @@ async function generatePreviewFiles() {
     fs.writeFileSync(path.join(outputDir, 'customer-confirmation.html'), confirmationPreviewHtml);
     
     // Generate customer denial preview
-    console.log('❌ Generating customer denial preview...');
+    console.log('Generating customer denial preview...');
     const denialEmail = templates.generateCustomerDenialEmail(sampleDenialData);
     const denialPreviewHtml = createPreviewWrapper(
-      'Customer Denial Email', 
+      'Customer Denial Email',
       'This is the email that customers receive when their booking is declined.',
       denialEmail.html
     );
     fs.writeFileSync(path.join(outputDir, 'customer-denial.html'), denialPreviewHtml);
-    
+
+    // Generate customer submission acknowledgment preview
+    console.log('Generating customer submission ack preview...');
+    const submissionAckEmail = templates.generateCustomerSubmissionAckEmail(sampleSubmissionAckData);
+    const submissionAckPreviewHtml = createPreviewWrapper(
+      'Customer Submission Acknowledgment Email',
+      'This is the email that customers receive immediately after submitting a booking request.',
+      submissionAckEmail.html
+    );
+    fs.writeFileSync(path.join(outputDir, 'customer-submission-ack.html'), submissionAckPreviewHtml);
+
     // Generate index page with all previews
-    console.log('📑 Generating index page...');
+    console.log('Generating index page...');
     const indexHtml = createIndexPage();
     fs.writeFileSync(path.join(outputDir, 'index.html'), indexHtml);
-    
-    console.log('✨ Preview files generated successfully!');
-    console.log(`📂 Open: ${path.join(outputDir, 'index.html')}`);
+
+    console.log('Preview files generated successfully!');
+    console.log(`Open: ${path.join(outputDir, 'index.html')}`);
     console.log('');
     console.log('Individual preview files:');
-    console.log(`   📧 Owner Notification: ${path.join(outputDir, 'owner-notification.html')}`);
-    console.log(`   ✅ Customer Confirmation: ${path.join(outputDir, 'customer-confirmation.html')}`);
-    console.log(`   ❌ Customer Denial: ${path.join(outputDir, 'customer-denial.html')}`);
+    console.log(`   Owner Notification: ${path.join(outputDir, 'owner-notification.html')}`);
+    console.log(`   Customer Confirmation: ${path.join(outputDir, 'customer-confirmation.html')}`);
+    console.log(`   Customer Denial: ${path.join(outputDir, 'customer-denial.html')}`);
+    console.log(`   Customer Submission Ack: ${path.join(outputDir, 'customer-submission-ack.html')}`);
     
   } catch (error) {
-    console.error('❌ Error generating previews:', error);
+    console.error('Error generating previews:', error);
   }
 }
 
@@ -319,6 +284,7 @@ function createIndexPage() {
         .owner-card { border-top: 4px solid #2d5a3d; }
         .confirmation-card { border-top: 4px solid #16a34a; }
         .denial-card { border-top: 4px solid #dc2626; }
+        .submission-ack-card { border-top: 4px solid #2563eb; }
         .info-box {
             background: #e3f2fd;
             border: 1px solid #90caf9;
@@ -363,6 +329,13 @@ function createIndexPage() {
                 <h3>Customer Denial</h3>
                 <p>The email sent to customers when their booking cannot be accommodated. Provides alternative options and contact information.</p>
                 <a href="customer-denial.html" class="template-link">View Preview</a>
+            </div>
+
+            <div class="template-card submission-ack-card">
+                <div class="template-icon">📬</div>
+                <h3>Submission Acknowledgment</h3>
+                <p>The immediate "thank you" email sent to customers right after they submit a booking request, before owner approval.</p>
+                <a href="customer-submission-ack.html" class="template-link">View Preview</a>
             </div>
         </div>
         

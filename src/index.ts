@@ -45,17 +45,19 @@ import { validateRequest, SecurityEnv } from "./layers/security";
 import { handleTripQuoteRequest, type TripQuoteEnv } from "./workers/tripQuote";
 import { handleSubmission, CoordinationEnv, CoordinationResult, checkAndUpdateBookingStatus } from "./layers/coordination";
 import { GoogleSheetsClient } from "./integrations/googleSheets";
-import { 
-  generateOwnerNotificationEmail, 
-  generateCustomerConfirmationEmail, 
+import {
+  generateOwnerNotificationEmail,
+  generateCustomerConfirmationEmail,
   generateCustomerDenialEmail,
   generateOwnerDeliveryNotificationEmail,
+  generateCustomerSubmissionAckEmail,
   formatTicketDate,
   formatTicketTime,
   type OwnerNotificationData,
   type CustomerConfirmationData,
   type OwnerDeliveryNotificationData,
-  type CustomerDenialData 
+  type CustomerDenialData,
+  type CustomerSubmissionAckData
 } from "./templates/emails";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -197,10 +199,14 @@ export default {
     });
 
     let resendResult: ResendResult | undefined;
+    let customerAckResult: ResendResult | undefined;
 
     if (!dryRun) {
       try {
         resendResult = await sendEmail(env.RESEND_API_KEY, ownerEmailRequest, verbose);
+        logVerbose(verbose, "owner notification sent", {
+          messageId: resendResult.id.slice(0, 12),
+        });
       } catch (error) {
         logVerbose(
           verbose,
@@ -233,6 +239,26 @@ export default {
           { status: 502 }
         ), origin);
       }
+
+      // Send customer submission acknowledgment email
+      try {
+        const customerAckEmail = buildCustomerSubmissionAckEmail(coordination.summary, env);
+        logVerbose(verbose, "customer ack email ready", {
+          recipient: customerAckEmail.to,
+          transactionRef: coordination.summary.transactionId.slice(0, 12),
+        });
+        customerAckResult = await sendEmail(env.RESEND_API_KEY, customerAckEmail, verbose);
+        logVerbose(verbose, "customer ack sent", {
+          messageId: customerAckResult.id.slice(0, 12),
+        });
+      } catch (customerAckError) {
+        // Log the error but don't fail the entire request if customer ack email fails
+        console.warn('Failed to send customer acknowledgment email (non-critical):', {
+          error: customerAckError instanceof Error ? customerAckError.message : String(customerAckError),
+          transactionId: coordination.summary.transactionId,
+          customerEmail: coordination.summary.customerEmail,
+        });
+      }
     }
 
     await securityResult.markProcessed();
@@ -241,7 +267,8 @@ export default {
       email: securityResult.customerEmail,
       route: `${coordination.summary.startLocation} → ${coordination.summary.endLocation}`,
       actionRequired: "Owner needs to accept/deny this booking",
-      notificationSent: !dryRun,
+      ownerNotificationSent: !dryRun,
+      customerAckSent: !dryRun && !!customerAckResult,
       transactionRef: coordination.summary.transactionId.slice(0, 12),
     });
 
@@ -578,7 +605,7 @@ async function handleOwnerDecision(
     }
     
     return new Response(
-      renderSuccessPage(decision, tokenData.transactionId, customerDetails.name),
+      renderSuccessPage(decision, tokenData.transactionId, customerDetails.name, bookingDetails),
       { status: 200, headers: { 'Content-Type': 'text/html' } }
     );
     
@@ -640,6 +667,7 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
   bookingRef: string;
   customerName?: string;
   notes?: string;
+  mapUrl?: string;
 }> {
   const primarySheetId = env.GOOGLE_SHEET_ID_PRIMARY;
   if (!primarySheetId) {
@@ -676,6 +704,7 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
         price: row[12] as string || '',
         customerName: row[3] as string || '',
         notes: (row[14] as string) || undefined,
+        mapUrl: (row[15] as string) || undefined,
         bookingRef: transactionId.slice(0, 10).toUpperCase(),
       };
     }
@@ -697,10 +726,11 @@ function buildCustomerNotificationEmail(
     estimatedDuration: string;
     bookingRef: string;
     notes?: string;
+    mapUrl?: string;
   }
 ): EmailPayload {
   const isAccepted = decision === 'accepted';
-  const subject = `${isAccepted ? '🎫' : '❌'} Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
+  const subject = `Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
 
   if (isAccepted) {
     const templateData: CustomerConfirmationData = {
@@ -717,6 +747,7 @@ function buildCustomerNotificationEmail(
       driverPhone: env.DRIVER_CONTACT_PHONE || '',
       driverEmail: env.DRIVER_CONTACT_EMAIL || '',
       notes: bookingDetails.notes,
+      mapUrl: bookingDetails.mapUrl,
       bookingRef: bookingDetails.bookingRef,
     };
     
@@ -743,6 +774,7 @@ function buildCustomerNotificationEmail(
       contactPhone: env.DRIVER_CONTACT_PHONE || '',
       contactEmail: env.DRIVER_CONTACT_EMAIL || '',
       reason: undefined, // Could add a custom reason from the environment or form
+      mapUrl: bookingDetails.mapUrl,
       bookingRef: bookingDetails.bookingRef,
     };
     
@@ -759,7 +791,19 @@ function buildCustomerNotificationEmail(
   }
 }
 
-function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: string, customerName: string): string {
+function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: string, customerName: string, bookingDetails: {
+  startLocation: string;
+  endLocation: string;
+  pickupTime: string;
+  pickupDate?: string;
+  price: string;
+  passengers: string;
+  estimatedDuration: string;
+  bookingRef: string;
+  customerName?: string;
+  notes?: string;
+  mapUrl?: string;
+}): string {
   const isAccepted = decision === 'accepted';
   return `<!DOCTYPE html>
 <html lang="en">
@@ -769,38 +813,118 @@ function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: strin
     <title>Booking ${isAccepted ? 'Accepted' : 'Declined'} - AC Shuttles</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; background: #f8f9fa; }
-        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .icon { font-size: 48px; text-align: center; margin-bottom: 24px; }
-        .title { font-size: 24px; font-weight: 600; text-align: center; margin-bottom: 16px; color: ${isAccepted ? '#28a745' : '#dc3545'}; }
-        .message { font-size: 16px; line-height: 1.6; text-align: center; color: #6c757d; margin-bottom: 32px; }
-        .details { background: #f8f9fa; border-radius: 8px; padding: 20px; }
-        .detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .container { max-width: 700px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: ${isAccepted ? '#d4edda' : '#f8d7da'};
+            color: ${isAccepted ? '#155724' : '#721c24'};
+            margin-bottom: 24px;
+        }
+        .title { font-size: 28px; font-weight: 600; margin-bottom: 16px; color: #212529; }
+        .message { font-size: 16px; line-height: 1.6; color: #6c757d; margin-bottom: 32px; }
+        .trip-details { background: #f8f9fa; border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+        .section-title { font-size: 14px; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+        .detail-row { display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e9ecef; }
+        .detail-row:last-child { border-bottom: none; padding-bottom: 0; }
         .detail-label { font-weight: 500; color: #495057; }
-        .detail-value { color: #6c757d; }
+        .detail-value { color: #212529; text-align: right; max-width: 60%; }
+        .route-display {
+            background: white;
+            border: 2px solid ${isAccepted ? '#28a745' : '#dc3545'};
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .route-arrow { margin: 0 12px; color: #6c757d; }
+        .location { font-weight: 500; color: #212529; }
+        .next-steps {
+            background: ${isAccepted ? '#d4edda' : '#f8d7da'};
+            border-left: 4px solid ${isAccepted ? '#28a745' : '#dc3545'};
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin-top: 24px;
+        }
+        .next-steps-title { font-weight: 600; color: ${isAccepted ? '#155724' : '#721c24'}; margin-bottom: 8px; }
+        .next-steps-text { color: ${isAccepted ? '#155724' : '#721c24'}; line-height: 1.5; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="icon">${isAccepted ? '✅' : '❌'}</div>
-        <div class="title">Booking ${isAccepted ? 'Accepted' : 'Declined'}</div>
+        <div class="status-badge">${isAccepted ? 'ACCEPTED' : 'DECLINED'}</div>
+        <h1 class="title">Booking ${isAccepted ? 'Confirmed' : 'Declined'}</h1>
+
         <div class="message">
-            ${isAccepted 
-              ? `You have successfully accepted the booking request from <strong>${escapeHtml(customerName)}</strong>. The customer has been notified and will receive driver contact information.`
-              : `You have declined the booking request from <strong>${escapeHtml(customerName)}</strong>. The customer has been notified about this decision.`
+            ${isAccepted
+              ? `You have successfully accepted the booking request. The customer has been notified with driver contact information and pickup instructions.`
+              : `You have declined the booking request. The customer has been notified and provided with alternative contact options.`
             }
         </div>
-        <div class="details">
-            <div class="detail-row">
-                <span class="detail-label">Transaction ID:</span>
-                <span class="detail-value">${transactionId.slice(0, 16)}...</span>
+
+        <div class="route-display">
+            <div style="text-align: center;">
+                <span class="location">${escapeHtml(bookingDetails.startLocation)}</span>
+                <span class="route-arrow">→</span>
+                <span class="location">${escapeHtml(bookingDetails.endLocation)}</span>
             </div>
+        </div>
+
+        <div class="trip-details">
+            <div class="section-title">Trip Details</div>
             <div class="detail-row">
-                <span class="detail-label">Customer:</span>
+                <span class="detail-label">Customer Name:</span>
                 <span class="detail-value">${escapeHtml(customerName)}</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">Decision:</span>
-                <span class="detail-value" style="color: ${isAccepted ? '#28a745' : '#dc3545'}; font-weight: 500;">${isAccepted ? 'Accepted' : 'Declined'}</span>
+                <span class="detail-label">Pickup Time:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupTime)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Pickup Date:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupDate || 'Not specified')}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Passengers:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.passengers)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Price:</span>
+                <span class="detail-value" style="font-weight: 600; color: ${isAccepted ? '#28a745' : '#dc3545'};">${escapeHtml(bookingDetails.price)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Duration:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.estimatedDuration)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Booking Reference:</span>
+                <span class="detail-value" style="font-family: monospace;">${escapeHtml(bookingDetails.bookingRef)}</span>
+            </div>
+            ${bookingDetails.notes ? `
+            <div class="detail-row">
+                <span class="detail-label">Special Instructions:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.notes)}</span>
+            </div>
+            ` : ''}
+        </div>
+
+        <div class="next-steps">
+            <div class="next-steps-title">Next Steps</div>
+            <div class="next-steps-text">
+                ${isAccepted
+                  ? `• The customer has been sent confirmation with your contact details<br>
+                     • Please contact the customer 30 minutes before pickup<br>
+                     • Ensure you arrive at the pickup location on time<br>
+                     • The customer has your phone number and email for questions`
+                  : `• The customer has been informed of the cancellation<br>
+                     • They have been provided with alternative contact options<br>
+                     • No further action is required from you<br>
+                     • This booking is now closed in the system`
+                }
             </div>
         </div>
     </div>
@@ -825,7 +949,7 @@ function renderErrorPage(title: string, message: string): string {
 </head>
 <body>
     <div class="container">
-        <div class="icon">⚠️</div>
+        <div class="icon" style="color: #dc3545; font-size: 48px;">!</div>
         <div class="title">${escapeHtml(title)}</div>
         <div class="message">${escapeHtml(message)}</div>
     </div>
@@ -836,7 +960,7 @@ function renderErrorPage(title: string, message: string): string {
 function renderDecisionAlreadyMadePage(currentStatus: string, transactionId: string, customerName: string, customerEmail: string, ownerEmail: string): string {
   const isAccepted = currentStatus.toLowerCase() === 'accepted';
   const statusColor = isAccepted ? '#28a745' : '#dc3545';
-  const statusIcon = isAccepted ? '✅' : '❌';
+  const statusText = isAccepted ? 'ACCEPTED' : 'DECLINED';
   
   const emailSubject = `Request to Change Booking Decision - ${customerName}`;
   const emailBody = `Hi,
@@ -913,7 +1037,19 @@ Thank you!`;
 </head>
 <body>
     <div class="container">
-        <div class="icon">${statusIcon}</div>
+        <div class="status-badge" style="
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: ${isAccepted ? '#d4edda' : '#f8d7da'};
+            color: ${isAccepted ? '#155724' : '#721c24'};
+            margin-bottom: 24px;
+            text-align: center;
+        ">${statusText}</div>
         <div class="title">Decision Already Made</div>
         <div class="message">
             A decision has already been made for this booking request. If you need to change this decision, please use the contact button below.
@@ -943,10 +1079,10 @@ Thank you!`;
                class="email-button"
                target="_blank"
                rel="noopener">
-                📧 Contact to Change Decision
+                Contact to Change Decision
             </a>
             <button onclick="toggleEmailTemplate()" class="copy-button">
-                📋 Show Email Template
+                Show Email Template
             </button>
         </div>
         
@@ -965,10 +1101,10 @@ ${emailBody}</div>
                 const button = event.target;
                 if (template.style.display === 'none' || !template.style.display) {
                     template.style.display = 'block';
-                    button.textContent = '📋 Hide Email Template';
+                    button.textContent = 'Hide Email Template';
                 } else {
                     template.style.display = 'none';
-                    button.textContent = '📋 Show Email Template';
+                    button.textContent = 'Show Email Template';
                 }
             }
         </script>
@@ -1152,6 +1288,7 @@ async function buildOwnerEmailPayload({
     customerPhone: summary.customerPhone,
     vehicleType: summary.vehicleType,
     notes: summary.notes,
+    mapUrl: summary.mapUrl,
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
     acceptUrl,
     denyUrl
@@ -1159,7 +1296,7 @@ async function buildOwnerEmailPayload({
   
   // Generate ticket-style email
   const { html, text } = generateOwnerNotificationEmail(templateData);
-  const subject = `🎫 ${templateData.price} Ride Request – ${templateData.startLocation.split(',')[0]} → ${templateData.endLocation.split(',')[0]}`;
+  const subject = `${templateData.price} Ride Request – ${templateData.startLocation.split(',')[0]} → ${templateData.endLocation.split(',')[0]}`;
 
   return {
     from: `AC Shuttles Booking System <${env.CUSTOMER_FROM_EMAIL}>`,
@@ -1173,6 +1310,48 @@ async function buildOwnerEmailPayload({
       'X-Entity-Ref-ID': summary.transactionId.slice(0, 16),
       'List-Unsubscribe': '<mailto:unsubscribe@ac-shuttles.com>',
       'X-Auto-Response-Suppress': 'OOF, DR, RN, NRN',
+    },
+  };
+}
+
+/**
+ * Builds customer submission acknowledgment email
+ *
+ * Sends a simple "thank you" email immediately after form submission
+ * to confirm receipt and provide contact information.
+ *
+ * @param summary - Processed booking summary with all trip details
+ * @param env - Environment variables for contact info
+ * @returns Complete email payload ready for Resend API
+ */
+function buildCustomerSubmissionAckEmail(
+  summary: CoordinationResult["summary"],
+  env: Env
+): EmailPayload {
+  const templateData: CustomerSubmissionAckData = {
+    customerName: summary.customerName,
+    customerEmail: summary.customerEmail,
+    startLocation: summary.startLocation,
+    endLocation: summary.endLocation,
+    pickupTime: formatTicketTime(summary.pickupTime),
+    pickupDate: formatTicketDate(summary.pickupTime),
+    bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
+    contactPhone: env.DRIVER_CONTACT_PHONE || '',
+    contactEmail: env.DRIVER_CONTACT_EMAIL || env.CUSTOMER_FROM_EMAIL,
+  };
+
+  const { html, text } = generateCustomerSubmissionAckEmail(templateData);
+  const subject = `Thank You - Ride Request Received`;
+
+  return {
+    from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+    to: summary.customerEmail,
+    subject,
+    html,
+    text,
+    tags: ["submission-acknowledgment", "customer-notification"],
+    headers: {
+      'X-Entity-Ref-ID': summary.transactionId.slice(0, 16),
     },
   };
 }

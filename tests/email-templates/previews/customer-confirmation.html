@@ -150,36 +150,50 @@
         
         /* Route Display */
         .route-section {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             margin-bottom: 24px;
-            padding: 20px 16px;
             background: #f0fdf4;
             border-radius: 12px;
             border: 2px solid #bbf7d0;
-            min-height: 80px;
+            overflow: hidden;
         }
         
-        .location-box {
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        
+        .route-cell {
+            width: 45%;
+            padding: 20px 12px;
             text-align: center;
-            flex: 1;
+            vertical-align: middle;
+            border: none;
         }
         
+        .route-arrow-cell {
+            width: 10%;
+            padding: 10px;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+        }
         
         .location-name {
-            font-size: 16px;
+            font-size: 18px;
             color: #333;
             font-weight: 600;
-            line-height: 1.4;
-            padding: 12px 8px;
-            text-align: center;
+            line-height: 1.3;
+            word-wrap: break-word;
+            hyphens: auto;
         }
         
         .route-arrow {
-            margin: 0 16px;
-            font-size: 20px;
+            font-size: 24px;
             color: #22c55e;
+            display: block;
         }
         
         /* Pickup Time */
@@ -193,60 +207,72 @@
         }
         
         .time-label {
-            font-size: 14px;
+            font-size: 16px;
             color: #16a34a;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-weight: 700;
         }
         
         .time-value {
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 900;
             color: #16a34a;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            line-height: 1.1;
         }
         
         .date-value {
-            font-size: 16px;
+            font-size: 20px;
             color: #333;
             font-weight: 600;
         }
         
         /* Details Grid */
         .details-grid {
-            display: flex;
-            margin-bottom: 20px;
-            border: 1px solid #bbf7d0;
+            margin-bottom: 24px;
+            border: 2px solid #bbf7d0;
             border-radius: 8px;
             overflow: hidden;
         }
         
-        .detail-box {
-            flex: 1;
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        
+        .detail-cell {
+            width: 50%;
             text-align: center;
-            padding: 16px 8px;
+            padding: 20px 12px;
+            vertical-align: middle;
+            border: none;
             border-right: 1px solid #bbf7d0;
         }
         
-        .detail-box:last-child {
+        .detail-cell:last-child {
             border-right: none;
         }
         
         .detail-label {
-            font-size: 10px;
+            font-size: 12px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             font-weight: 600;
+            display: block;
         }
         
         .detail-value {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 700;
             color: #16a34a;
+            line-height: 1.2;
         }
         
         /* Information Sections */
@@ -259,18 +285,20 @@
         }
         
         .info-title {
-            font-size: 12px;
+            font-size: 14px;
             color: #16a34a;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-weight: 700;
         }
         
         .info-content {
             color: #333;
-            font-size: 14px;
-            line-height: 1.4;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            word-break: break-word;
         }
         
         .contact-item {
@@ -371,6 +399,32 @@
             line-height: 1.4;
         }
         
+        /* Map Button */
+        .map-button {
+            display: block;
+            width: 100%;
+            padding: 16px 24px;
+            margin: 16px 0;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .map-button:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        .button-subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -384,53 +438,120 @@
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
-            
-            .route-section {
-                flex-direction: column;
-                padding: 16px;
-                min-height: auto;
-            }
-            
-            .route-arrow {
-                margin: 12px 0;
-                transform: rotate(90deg);
-            }
-            
-            .location-name {
-                font-size: 14px;
-                padding: 8px 4px;
-            }
-            
-            .pickup-time-section {
-                padding: 16px;
-            }
-            
-            .time-value {
-                font-size: 20px;
-            }
-            
-            .date-value {
-                font-size: 14px;
-            }
-            
-            .details-grid {
-                flex-direction: column;
-            }
-            
-            .detail-box {
-                border-right: none;
-                border-bottom: 1px solid #bbf7d0;
-            }
-            
-            .detail-box:last-child {
-                border-bottom: none;
-            }
-            
-            
+
             .ticket-body {
-                padding: 16px;
+                padding: 16px !important;
+            }
+
+            .route-table {
+                table-layout: auto !important;
+            }
+
+            .route-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 12px !important;
+            }
+
+            .route-arrow-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 8px !important;
+            }
+
+            .location-name {
+                font-size: 16px !important;
+                line-height: 1.3 !important;
+            }
+
+            .route-arrow {
+                transform: rotate(90deg);
+                font-size: 20px !important;
+            }
+
+            .pickup-time-section {
+                padding: 16px !important;
+            }
+
+            .time-value {
+                font-size: 26px !important;
+            }
+
+            .date-value {
+                font-size: 17px !important;
+            }
+
+            .details-table {
+                table-layout: auto !important;
+            }
+
+            .detail-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 14px !important;
+                border-right: none !important;
+                border-bottom: 1px solid #bbf7d0 !important;
+            }
+
+            .detail-cell:last-child {
+                border-bottom: none !important;
+            }
+
+            .detail-value {
+                font-size: 20px !important;
+            }
+
+            .info-content {
+                font-size: 15px !important;
+            }
+
+            .header h1 {
+                font-size: 20px !important;
+            }
+
+            .success-title {
+                font-size: 16px !important;
+            }
+
+            .success-text {
+                font-size: 13px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 8px !important;
+            }
+
+            .ticket-body {
+                padding: 12px !important;
+            }
+
+            .location-name {
+                font-size: 14px !important;
+            }
+
+            .time-value {
+                font-size: 24px !important;
+            }
+
+            .date-value {
+                font-size: 16px !important;
+            }
+
+            .detail-value {
+                font-size: 18px !important;
+            }
+
+            .info-content {
+                font-size: 14px !important;
+            }
+
+            .info-title {
+                font-size: 12px !important;
             }
         }
     </style>
@@ -438,7 +559,7 @@
 <body>
     <div class=&quot;email-container&quot;>
         <div class=&quot;header&quot;>
-            <h1 style=&quot;color: #333;&quot;>🚐 AC SHUTTLES</h1>
+            <h1 style=&quot;color: #333;&quot;>AC SHUTTLES</h1>
         </div>
         
         <div class=&quot;success-message&quot;>
@@ -448,20 +569,26 @@
         
         <div class=&quot;ticket-card&quot;>
             <div class=&quot;ticket-header&quot;>
-                <div class=&quot;ticket-title&quot;>🎫 AC SHUTTLES TICKET</div>
-                <div class=&quot;ticket-subtitle&quot;>✅ CONFIRMED</div>
+                <div class=&quot;ticket-title&quot;>AC SHUTTLES TICKET</div>
+                <div class=&quot;ticket-subtitle&quot;>CONFIRMED</div>
             </div>
             
             <div class=&quot;ticket-body&quot;>
                 <!-- Route Display -->
                 <div class=&quot;route-section&quot;>
-                    <div class=&quot;location-box&quot;>
-                        <div class=&quot;location-name&quot;>1000 Boardwalk, Atlantic City, NJ 08401</div>
-                    </div>
-                    <div class=&quot;route-arrow&quot;>🚐</div>
-                    <div class=&quot;location-box&quot;>
-                        <div class=&quot;location-name&quot;>101 Atlantic City International Airport, Egg Harbor Township, NJ 08234</div>
-                    </div>
+                    <table class=&quot;route-table&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;>
+                        <tr>
+                            <td class=&quot;route-cell&quot; width=&quot;45%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <div class=&quot;location-name&quot;>1247 Washington Boulevard, Los Angeles, CA 90015</div>
+                            </td>
+                            <td class=&quot;route-arrow-cell&quot; width=&quot;10%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <div class=&quot;route-arrow&quot;>→</div>
+                            </td>
+                            <td class=&quot;route-cell&quot; width=&quot;45%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <div class=&quot;location-name&quot;>1 World Way, Terminal 1, Los Angeles, CA 90045</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Pickup Time -->
@@ -473,29 +600,33 @@
                 
                 <!-- Details Grid -->
                 <div class=&quot;details-grid&quot;>
-                    <div class=&quot;detail-box&quot;>
-                        <div class=&quot;detail-label&quot;>Passengers</div>
-                        <div class=&quot;detail-value&quot;>2</div>
-                    </div>
-                    <div class=&quot;detail-box&quot;>
-                        <div class=&quot;detail-label&quot;>Fare</div>
-                        <div class=&quot;detail-value&quot;>$45.00</div>
-                    </div>
+                    <table class=&quot;details-table&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;>
+                        <tr>
+                            <td class=&quot;detail-cell&quot; width=&quot;50%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <div class=&quot;detail-label&quot;>Passengers</div>
+                                <div class=&quot;detail-value&quot;>2</div>
+                            </td>
+                            <td class=&quot;detail-cell&quot; width=&quot;50%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <div class=&quot;detail-label&quot;>Fare</div>
+                                <div class=&quot;detail-value&quot;>$45.00</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Driver Details -->
                 <div class=&quot;info-section&quot;>
-                    <div class=&quot;info-title&quot;>👤 Your Driver</div>
+                    <div class=&quot;info-title&quot;>YOUR DRIVER</div>
                     <div class=&quot;info-content&quot;>
-                        <div class=&quot;contact-item&quot;><strong>Name:</strong> Mike Johnson</div>
-                        <div class=&quot;contact-item&quot;><strong>Phone:</strong> <a href=&quot;tel:(555) 987-6543&quot; class=&quot;contact-link&quot;>(555) 987-6543</a></div>
-                        <div class=&quot;contact-item&quot;><strong>Email:</strong> <a href=&quot;mailto:mike@acshuttles.com&quot; class=&quot;contact-link&quot;>mike@acshuttles.com</a></div>
+                        <div class=&quot;contact-item&quot;><strong>Name:</strong> AC Shuttles Driver</div>
+                        <div class=&quot;contact-item&quot;><strong>Phone:</strong> <a href=&quot;tel:(609) 555-1234&quot; class=&quot;contact-link&quot;>(609) 555-1234</a></div>
+                        <div class=&quot;contact-item&quot;><strong>Email:</strong> <a href=&quot;mailto:driver@acshuttles.com&quot; class=&quot;contact-link&quot;>driver@acshuttles.com</a></div>
                     </div>
                 </div>
                 
                 <!-- Pickup Instructions -->
                 <div class=&quot;info-section&quot;>
-                    <div class=&quot;info-title&quot;>📍 Pickup Instructions</div>
+                    <div class=&quot;info-title&quot;>PICKUP INSTRUCTIONS</div>
                     <div class=&quot;info-content&quot;>
                         <ul class=&quot;instruction-list&quot;>
                             <li class=&quot;instruction-item&quot;>Be ready 5-10 minutes before scheduled time</li>
@@ -505,19 +636,25 @@
                         </ul>
                         <div style=&quot;margin-top: 12px;&quot;>
                             <strong>Pickup Location:</strong><br>
-                            1000 Boardwalk<br>
-                            Atlantic City, NJ 08401
+                            1247 Washington Boulevard, Los Angeles, CA 90015
                         </div>
                     </div>
                 </div>
                 
                 
                 <div class=&quot;info-section&quot;>
-                    <div class=&quot;info-title&quot;>📝 Trip Notes</div>
+                    <div class=&quot;info-title&quot;>TRIP NOTES</div>
                     <div class=&quot;info-content&quot;>Car seat and luggage assistance needed</div>
                 </div>
                 
+
                 
+                <a href=&quot;https://maps.google.com/maps?q=1247+Washington+Boulevard+to+LAX&quot; class=&quot;map-button&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;>
+                    VIEW ROUTE ON GOOGLE MAPS
+                    <div class=&quot;button-subtitle&quot;>See directions and traffic updates</div>
+                </a>
+                
+
                 <!-- Perforated Line -->
                 <div class=&quot;perforation&quot;></div>
                 
@@ -531,7 +668,7 @@
         
         <!-- Footer -->
         <div class=&quot;footer&quot;>
-            📞 Questions? Call (555) 987-6543 or reply to this email
+            📞 Questions? Call (609) 555-1234 or reply to this email
         </div>
     </div>
 </body>

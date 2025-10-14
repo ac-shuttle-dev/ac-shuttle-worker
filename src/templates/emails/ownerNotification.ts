@@ -16,9 +16,9 @@ export interface OwnerNotificationData {
   startLocation: string;  // Full physical address (e.g., "1000 Boardwalk, Atlantic City, NJ 08401")
   endLocation: string;    // Full physical address (e.g., "101 Atlantic City International Airport, Egg Harbor Township, NJ 08234")
   pickupTime: string;
-  arrivalTime: string;
+  arrivalTime?: string;
   pickupDate: string;
-  arrivalDate: string;
+  arrivalDate?: string;
   price: string;
   passengers: string;
   estimatedDuration: string;
@@ -139,42 +139,60 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         
         /* Route Display */
         .route-section {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
             margin-bottom: 24px;
-            padding: 20px 16px;
             background: #f8fdf8;
             border-radius: 12px;
             border: 2px dashed #d0e7d0;
-            min-height: 120px;
+            overflow: hidden;
         }
-        
-        .route-item {
-            flex: 1;
-            font-size: 22px;
-            color: #333;
-            font-weight: 500;
-            line-height: 1.6;
-            padding: 20px 16px;
-            text-align: left;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            min-height: 80px;
+
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
         }
-        
-        .route-item strong {
+
+        .route-cell {
+            width: 42%;
+            padding: 20px 12px;
+            vertical-align: top;
+            border: none;
+        }
+
+        .route-arrow-cell {
+            width: 16%;
+            padding: 20px 8px;
+            text-align: center;
+            vertical-align: middle;
+            border: none;
+        }
+
+        .route-label {
+            font-size: 12px;
             color: #2d5a3d;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: block;
         }
-        
+
+        .route-location {
+            font-size: 18px;
+            color: #333;
+            font-weight: 500;
+            line-height: 1.4;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+        }
+
         .route-arrow {
-            margin: 0 16px;
             font-size: 24px;
             color: #4a8a5a;
-            align-self: center;
-            flex-shrink: 0;
+            display: block;
         }
         
         /* Fare & Pickup Time */
@@ -283,8 +301,10 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         
         .info-content {
             color: #333;
-            font-size: 22px;
-            line-height: 1.6;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            word-break: break-word;
         }
         
         .address-line {
@@ -442,63 +462,111 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
-            
-            .route-section {
-                flex-direction: column;
-                padding: 16px;
-                min-height: auto;
+
+            .ticket-body {
+                padding: 16px !important;
             }
-            
+
+            .route-table {
+                table-layout: auto !important;
+            }
+
+            .route-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 12px !important;
+            }
+
+            .route-arrow-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 8px !important;
+            }
+
             .route-arrow {
-                margin: 12px 0;
                 transform: rotate(90deg);
+                font-size: 20px !important;
             }
-            
-            .route-item {
-                font-size: 18px;
-                padding: 16px 12px;
+
+            .route-location {
+                font-size: 16px !important;
             }
-            
+
             .fare-pickup-grid {
                 flex-direction: column;
                 gap: 12px;
             }
-            
+
             .fare-box, .pickup-box {
-                padding: 16px;
+                padding: 16px !important;
             }
-            
+
             .detail-value {
-                font-size: 24px;
+                font-size: 22px !important;
             }
-            
+
             .pickup-date {
-                font-size: 16px;
+                font-size: 16px !important;
             }
-            
+
             .trip-details-grid {
                 flex-direction: column;
             }
-            
+
             .detail-box {
-                border-right: none;
+                border-right: none !important;
                 border-bottom: 1px solid #d0e7d0;
-                padding: 16px;
+                padding: 14px !important;
             }
-            
+
             .detail-box:last-child {
-                border-bottom: none;
+                border-bottom: none !important;
             }
-            
+
             .info-content {
-                font-size: 18px;
+                font-size: 15px !important;
             }
-            
-            
+
+            .header h1 {
+                font-size: 20px !important;
+            }
+
+            .header p {
+                font-size: 14px !important;
+            }
+
+            .actions-title {
+                font-size: 16px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 8px !important;
+            }
+
             .ticket-body {
-                padding: 16px;
+                padding: 12px !important;
+            }
+
+            .route-location {
+                font-size: 14px !important;
+            }
+
+            .detail-value {
+                font-size: 20px !important;
+            }
+
+            .info-content {
+                font-size: 14px !important;
+            }
+
+            .action-button {
+                padding: 16px 20px !important;
+                font-size: 15px !important;
             }
         }
     </style>
@@ -506,26 +574,34 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>📍 AC SHUTTLES</h1>
+            <h1>AC SHUTTLES</h1>
             <p>New Booking Request</p>
         </div>
         
         <div class="ticket-card">
             <div class="ticket-header">
-                <div class="ticket-title">🎫 AC SHUTTLES TICKET</div>
+                <div class="ticket-title">AC SHUTTLES TICKET</div>
                 <div class="ticket-subtitle">Booking Request</div>
             </div>
             
             <div class="ticket-body">
                 <!-- Route Display -->
                 <div class="route-section">
-                    <div class="route-item">
-                        <strong>FROM:</strong> ${data.startLocation}
-                    </div>
-                    <div class="route-arrow">🚐</div>
-                    <div class="route-item">
-                        <strong>TO:</strong> ${data.endLocation}
-                    </div>
+                    <table class="route-table" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                        <tr>
+                            <td class="route-cell" width="42%" valign="top">
+                                <span class="route-label">FROM:</span>
+                                <div class="route-location">${data.startLocation}</div>
+                            </td>
+                            <td class="route-arrow-cell" width="16%" align="center" valign="middle">
+                                <span class="route-arrow">→</span>
+                            </td>
+                            <td class="route-cell" width="42%" valign="top">
+                                <span class="route-label">TO:</span>
+                                <div class="route-location">${data.endLocation}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Fare & Pickup Time -->
@@ -563,7 +639,7 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 
                 <!-- Passenger Details -->
                 <div class="info-section">
-                    <div class="info-title">👤 Passenger Details</div>
+                    <div class="info-title">PASSENGER DETAILS</div>
                     <div class="info-content">
                         <div class="contact-item"><strong>Name:</strong> ${data.customerName}</div>
                         <div class="contact-item"><strong>Email:</strong> <a href="mailto:${data.customerEmail}" class="contact-link">${data.customerEmail}</a></div>
@@ -574,7 +650,7 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 
                 ${data.notes ? `
                 <div class="info-section">
-                    <div class="info-title">📝 Special Instructions</div>
+                    <div class="info-title">SPECIAL INSTRUCTIONS</div>
                     <div class="info-content">${data.notes}</div>
                 </div>
                 ` : ''}
@@ -585,28 +661,27 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 <!-- Ticket Stub -->
                 <div class="ticket-stub">
                     <div class="booking-ref">BOOKING REF: ${data.bookingRef}</div>
-                    <div class="validity">Valid Today Only</div>
                 </div>
             </div>
         </div>
         
         <!-- Action Buttons -->
         <div class="actions-section">
-            <div class="actions-title">⚡ Action Required</div>
+            <div class="actions-title">ACTION REQUIRED</div>
             
             <a href="${data.acceptUrl}" class="action-button accept-button">
-                ✅ ACCEPT RIDE
+                ACCEPT RIDE
                 <div class="button-subtitle">Confirm this ticket</div>
             </a>
             
             <a href="${data.denyUrl}" class="action-button decline-button">
-                ❌ DECLINE RIDE
+                DECLINE RIDE
                 <div class="button-subtitle">Cancel this ticket</div>
             </a>
 
             ${data.mapUrl ? `
             <a href="${data.mapUrl}" class="action-button map-button" target="_blank" rel="noopener noreferrer">
-                🗺️ VIEW ROUTE MAP
+                VIEW ROUTE MAP
                 <div class="button-subtitle">See directions on Google Maps</div>
             </a>
             ` : ''}
@@ -615,19 +690,19 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         <!-- Security Notice -->
         <div class="security-notice">
             <div class="security-notice-text">
-                ⚠️ Once you choose, this ticket becomes invalid for security. Choose carefully!
+                IMPORTANT: Once you choose, this ticket becomes invalid for security. Choose carefully!
             </div>
         </div>
         
         <!-- Footer -->
         <div class="footer">
-            📧 Reply to this email to contact the passenger directly
+            Reply to this email to contact the passenger directly
         </div>
     </div>
 </body>
 </html>`;
 
-  const text = `🎫 AC SHUTTLES - NEW BOOKING REQUEST
+  const text = `AC SHUTTLES - NEW BOOKING REQUEST
 
 TICKET DETAILS:
 ===============
@@ -667,7 +742,7 @@ Decline: ${data.denyUrl}
 
 BOOKING REF: ${data.bookingRef}
 
-⚠️ Once you click either link, both become invalid for security.
+IMPORTANT: Once you click either link, both become invalid for security.
 
 Reply to this email to contact the passenger directly.`;
 

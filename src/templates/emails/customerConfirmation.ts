@@ -19,16 +19,17 @@ export interface CustomerConfirmationData {
   price: string;
   passengers: string;
   estimatedDuration: string;
-  
+  mapUrl?: string;  // Google Maps URL for the route
+
   // Customer details
   customerName: string;
   customerEmail: string;
-  
+
   // Driver details
   driverName: string;
   driverPhone: string;
   driverEmail: string;
-  
+
   // Additional info
   notes?: string;
   bookingRef: string;
@@ -280,6 +281,8 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
             color: #333;
             font-size: 16px;
             line-height: 1.5;
+            word-wrap: break-word;
+            word-break: break-word;
         }
         
         .contact-item {
@@ -380,6 +383,32 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
             line-height: 1.4;
         }
         
+        /* Map Button */
+        .map-button {
+            display: block;
+            width: 100%;
+            padding: 16px 24px;
+            margin: 16px 0;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .map-button:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        .button-subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -393,63 +422,120 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
-            
-            .route-table {
-                table-layout: auto;
-            }
-            
-            .route-cell {
-                width: 50%;
-                padding: 16px 8px;
-            }
-            
-            .route-arrow-cell {
-                width: auto;
-                padding: 8px;
-            }
-            
-            .location-name {
-                font-size: 16px;
-                line-height: 1.2;
-            }
-            
-            .route-arrow {
-                font-size: 20px;
-            }
-            
-            .pickup-time-section {
-                padding: 16px;
-            }
-            
-            .time-value {
-                font-size: 28px;
-            }
-            
-            .date-value {
-                font-size: 18px;
-            }
-            
-            .details-table {
-                table-layout: auto;
-            }
-            
-            .detail-cell {
-                width: 50%;
-                padding: 16px 8px;
-            }
-            
-            .detail-value {
-                font-size: 18px;
-            }
-            
-            .info-content {
-                font-size: 15px;
-            }
-            
+
             .ticket-body {
-                padding: 16px;
+                padding: 16px !important;
+            }
+
+            .route-table {
+                table-layout: auto !important;
+            }
+
+            .route-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 12px !important;
+            }
+
+            .route-arrow-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 8px !important;
+            }
+
+            .location-name {
+                font-size: 16px !important;
+                line-height: 1.3 !important;
+            }
+
+            .route-arrow {
+                transform: rotate(90deg);
+                font-size: 20px !important;
+            }
+
+            .pickup-time-section {
+                padding: 16px !important;
+            }
+
+            .time-value {
+                font-size: 26px !important;
+            }
+
+            .date-value {
+                font-size: 17px !important;
+            }
+
+            .details-table {
+                table-layout: auto !important;
+            }
+
+            .detail-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 14px !important;
+                border-right: none !important;
+                border-bottom: 1px solid #bbf7d0 !important;
+            }
+
+            .detail-cell:last-child {
+                border-bottom: none !important;
+            }
+
+            .detail-value {
+                font-size: 20px !important;
+            }
+
+            .info-content {
+                font-size: 15px !important;
+            }
+
+            .header h1 {
+                font-size: 20px !important;
+            }
+
+            .success-title {
+                font-size: 16px !important;
+            }
+
+            .success-text {
+                font-size: 13px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 8px !important;
+            }
+
+            .ticket-body {
+                padding: 12px !important;
+            }
+
+            .location-name {
+                font-size: 14px !important;
+            }
+
+            .time-value {
+                font-size: 24px !important;
+            }
+
+            .date-value {
+                font-size: 16px !important;
+            }
+
+            .detail-value {
+                font-size: 18px !important;
+            }
+
+            .info-content {
+                font-size: 14px !important;
+            }
+
+            .info-title {
+                font-size: 12px !important;
             }
         }
     </style>
@@ -457,7 +543,7 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
 <body>
     <div class="email-container">
         <div class="header">
-            <h1 style="color: #333;">🚐 AC SHUTTLES</h1>
+            <h1 style="color: #333;">AC SHUTTLES</h1>
         </div>
         
         <div class="success-message">
@@ -467,8 +553,8 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
         
         <div class="ticket-card">
             <div class="ticket-header">
-                <div class="ticket-title">🎫 AC SHUTTLES TICKET</div>
-                <div class="ticket-subtitle">✅ CONFIRMED</div>
+                <div class="ticket-title">AC SHUTTLES TICKET</div>
+                <div class="ticket-subtitle">CONFIRMED</div>
             </div>
             
             <div class="ticket-body">
@@ -480,7 +566,7 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                                 <div class="location-name">${data.startLocation}</div>
                             </td>
                             <td class="route-arrow-cell" width="10%" align="center" valign="middle">
-                                <div class="route-arrow">🚐</div>
+                                <div class="route-arrow">→</div>
                             </td>
                             <td class="route-cell" width="45%" align="center" valign="middle">
                                 <div class="location-name">${data.endLocation}</div>
@@ -514,7 +600,7 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                 
                 <!-- Driver Details -->
                 <div class="info-section">
-                    <div class="info-title">👤 Your Driver</div>
+                    <div class="info-title">YOUR DRIVER</div>
                     <div class="info-content">
                         <div class="contact-item"><strong>Name:</strong> ${data.driverName}</div>
                         <div class="contact-item"><strong>Phone:</strong> <a href="tel:${data.driverPhone}" class="contact-link">${data.driverPhone}</a></div>
@@ -524,7 +610,7 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                 
                 <!-- Pickup Instructions -->
                 <div class="info-section">
-                    <div class="info-title">📍 Pickup Instructions</div>
+                    <div class="info-title">PICKUP INSTRUCTIONS</div>
                     <div class="info-content">
                         <ul class="instruction-list">
                             <li class="instruction-item">Be ready 5-10 minutes before scheduled time</li>
@@ -541,11 +627,18 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
                 
                 ${data.notes ? `
                 <div class="info-section">
-                    <div class="info-title">📝 Trip Notes</div>
+                    <div class="info-title">TRIP NOTES</div>
                     <div class="info-content">${data.notes}</div>
                 </div>
                 ` : ''}
-                
+
+                ${data.mapUrl ? `
+                <a href="${data.mapUrl}" class="map-button" target="_blank" rel="noopener noreferrer">
+                    VIEW ROUTE ON GOOGLE MAPS
+                    <div class="button-subtitle">See directions and traffic updates</div>
+                </a>
+                ` : ''}
+
                 <!-- Perforated Line -->
                 <div class="perforation"></div>
                 
@@ -565,9 +658,9 @@ export function generateCustomerConfirmationEmail(data: CustomerConfirmationData
 </body>
 </html>`;
 
-  const text = `🎫 AC SHUTTLES - BOOKING CONFIRMED
+  const text = `AC SHUTTLES - BOOKING CONFIRMED
 
-✅ YOUR RIDE IS CONFIRMED!
+YOUR RIDE IS CONFIRMED!
 Save this ticket and show it to your driver.
 
 TICKET DETAILS:
@@ -599,6 +692,10 @@ ${data.startLocation}
 ${data.notes ? `TRIP NOTES:
 ============
 ${data.notes}
+
+` : ''}${data.mapUrl ? `VIEW ROUTE:
+===========
+${data.mapUrl}
 
 ` : ''}BOOKING REF: ${data.bookingRef}
 

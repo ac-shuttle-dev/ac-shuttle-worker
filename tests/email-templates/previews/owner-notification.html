@@ -57,7 +57,7 @@
 <head>
     <meta charset=&quot;UTF-8&quot;>
     <meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;>
-    <title>New Ride Request - AC Shuttles</title>
+    <title>New Booking Request - AC Shuttles</title>
     <style>
         /* Reset styles */
         * {
@@ -150,60 +150,60 @@
         
         /* Route Display */
         .route-section {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
             margin-bottom: 24px;
-            padding: 20px 16px;
             background: #f8fdf8;
             border-radius: 12px;
             border: 2px dashed #d0e7d0;
-            min-height: 120px;
+            overflow: hidden;
         }
-        
-        .location-box {
+
+        .route-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+
+        .route-cell {
+            width: 42%;
+            padding: 20px 12px;
+            vertical-align: top;
+            border: none;
+        }
+
+        .route-arrow-cell {
+            width: 16%;
+            padding: 20px 8px;
             text-align: center;
-            flex: 1;
+            vertical-align: middle;
+            border: none;
         }
-        
-        .route-item {
-            flex: 1;
-            font-size: 22px;
-            color: #333;
-            font-weight: 500;
-            line-height: 1.6;
-            padding: 20px 16px;
-            text-align: left;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            min-height: 80px;
-        }
-        
-        .route-item strong {
+
+        .route-label {
+            font-size: 12px;
             color: #2d5a3d;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: block;
         }
-        
-        .location-code {
-            font-size: 24px;
-            font-weight: 900;
-            color: #2d5a3d;
-            margin-bottom: 4px;
-        }
-        
-        .location-name {
-            font-size: 12px;
-            color: #666;
+
+        .route-location {
+            font-size: 18px;
+            color: #333;
             font-weight: 500;
+            line-height: 1.4;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
         }
-        
+
         .route-arrow {
-            margin: 0 16px;
             font-size: 24px;
             color: #4a8a5a;
-            align-self: center;
-            flex-shrink: 0;
+            display: block;
         }
         
         /* Fare & Pickup Time */
@@ -244,56 +244,33 @@
             overflow: hidden;
         }
         
-        /* Times */
-        .times-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #f8fdf8;
-            border-radius: 8px;
-        }
-        
-        .time-column {
-            text-align: center;
-            flex: 1;
-        }
-        
         .time-label {
-            font-size: 11px;
-            color: #666;
+            font-size: 14px;
+            color: #2d5a3d;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 4px;
-            font-weight: 600;
+            margin-bottom: 8px;
+            font-weight: 700;
         }
         
         .time-value {
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 24px;
+            font-weight: 900;
             color: #2d5a3d;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
         
         .date-value {
-            font-size: 12px;
-            color: #666;
-        }
-        
-        /* Details Grid */
-        .details-grid {
-            display: flex;
-            margin-bottom: 20px;
-            border: 1px solid #e8f5e8;
-            border-radius: 8px;
-            overflow: hidden;
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
         }
         
         .detail-box {
             flex: 1;
             text-align: center;
-            padding: 16px 8px;
-            border-right: 1px solid #e8f5e8;
+            padding: 20px 12px;
+            border-right: 1px solid #d0e7d0;
         }
         
         .detail-box:last-child {
@@ -335,8 +312,10 @@
         
         .info-content {
             color: #333;
-            font-size: 22px;
-            line-height: 1.6;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            word-break: break-word;
         }
         
         .address-line {
@@ -453,7 +432,18 @@
             opacity: 0.9;
             margin-top: 4px;
         }
-        
+
+        .map-button {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .map-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+
         /* Security Notice */
         .security-notice {
             text-align: center;
@@ -483,74 +473,111 @@
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
-            
-            .route-section {
-                flex-direction: column;
-                padding: 16px;
-                min-height: auto;
+
+            .ticket-body {
+                padding: 16px !important;
             }
-            
+
+            .route-table {
+                table-layout: auto !important;
+            }
+
+            .route-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 12px !important;
+            }
+
+            .route-arrow-cell {
+                display: block !important;
+                width: 100% !important;
+                padding: 8px !important;
+            }
+
             .route-arrow {
-                margin: 12px 0;
                 transform: rotate(90deg);
+                font-size: 20px !important;
             }
-            
-            .route-item {
-                font-size: 18px;
-                padding: 16px 12px;
+
+            .route-location {
+                font-size: 16px !important;
             }
-            
+
             .fare-pickup-grid {
                 flex-direction: column;
                 gap: 12px;
             }
-            
+
             .fare-box, .pickup-box {
-                padding: 16px;
+                padding: 16px !important;
             }
-            
+
             .detail-value {
-                font-size: 24px;
+                font-size: 22px !important;
             }
-            
+
             .pickup-date {
-                font-size: 16px;
+                font-size: 16px !important;
             }
-            
+
             .trip-details-grid {
                 flex-direction: column;
             }
-            
-            .info-content {
-                font-size: 18px;
-            }
-            
-            .times-section {
-                flex-direction: column;
-                gap: 12px;
-            }
-            
-            .details-grid {
-                flex-direction: column;
-            }
-            
+
             .detail-box {
-                border-right: none;
-                border-bottom: 1px solid #e8f5e8;
+                border-right: none !important;
+                border-bottom: 1px solid #d0e7d0;
+                padding: 14px !important;
             }
-            
+
             .detail-box:last-child {
-                border-bottom: none;
+                border-bottom: none !important;
             }
-            
-            .location-code {
-                font-size: 20px;
+
+            .info-content {
+                font-size: 15px !important;
             }
-            
+
+            .header h1 {
+                font-size: 20px !important;
+            }
+
+            .header p {
+                font-size: 14px !important;
+            }
+
+            .actions-title {
+                font-size: 16px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 8px !important;
+            }
+
             .ticket-body {
-                padding: 16px;
+                padding: 12px !important;
+            }
+
+            .route-location {
+                font-size: 14px !important;
+            }
+
+            .detail-value {
+                font-size: 20px !important;
+            }
+
+            .info-content {
+                font-size: 14px !important;
+            }
+
+            .action-button {
+                padding: 16px 20px !important;
+                font-size: 15px !important;
             }
         }
     </style>
@@ -558,26 +585,34 @@
 <body>
     <div class=&quot;email-container&quot;>
         <div class=&quot;header&quot;>
-            <h1>📍 AC SHUTTLES</h1>
+            <h1>AC SHUTTLES</h1>
             <p>New Booking Request</p>
         </div>
         
         <div class=&quot;ticket-card&quot;>
             <div class=&quot;ticket-header&quot;>
-                <div class=&quot;ticket-title&quot;>🎫 AC SHUTTLES TICKET</div>
+                <div class=&quot;ticket-title&quot;>AC SHUTTLES TICKET</div>
                 <div class=&quot;ticket-subtitle&quot;>Booking Request</div>
             </div>
             
             <div class=&quot;ticket-body&quot;>
                 <!-- Route Display -->
                 <div class=&quot;route-section&quot;>
-                    <div class=&quot;route-item&quot;>
-                        <strong>FROM:</strong> 1000 Boardwalk, Atlantic City, NJ 08401
-                    </div>
-                    <div class=&quot;route-arrow&quot;>🚐</div>
-                    <div class=&quot;route-item&quot;>
-                        <strong>TO:</strong> 101 Atlantic City International Airport, Egg Harbor Township, NJ 08234
-                    </div>
+                    <table class=&quot;route-table&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; role=&quot;presentation&quot;>
+                        <tr>
+                            <td class=&quot;route-cell&quot; width=&quot;42%&quot; valign=&quot;top&quot;>
+                                <span class=&quot;route-label&quot;>FROM:</span>
+                                <div class=&quot;route-location&quot;>1247 Washington Boulevard, Los Angeles, CA 90015</div>
+                            </td>
+                            <td class=&quot;route-arrow-cell&quot; width=&quot;16%&quot; align=&quot;center&quot; valign=&quot;middle&quot;>
+                                <span class=&quot;route-arrow&quot;>→</span>
+                            </td>
+                            <td class=&quot;route-cell&quot; width=&quot;42%&quot; valign=&quot;top&quot;>
+                                <span class=&quot;route-label&quot;>TO:</span>
+                                <div class=&quot;route-location&quot;>1 World Way, Terminal 1, Los Angeles, CA 90045</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Fare & Pickup Time -->
@@ -608,14 +643,14 @@
                         </div>
                         <div class=&quot;detail-box&quot;>
                             <div class=&quot;detail-label&quot;>Distance</div>
-                            <div class=&quot;detail-value&quot;>15 miles</div>
+                            <div class=&quot;detail-value&quot;>12.3 miles</div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Passenger Details -->
                 <div class=&quot;info-section&quot;>
-                    <div class=&quot;info-title&quot;>👤 Passenger Details</div>
+                    <div class=&quot;info-title&quot;>PASSENGER DETAILS</div>
                     <div class=&quot;info-content&quot;>
                         <div class=&quot;contact-item&quot;><strong>Name:</strong> John Smith</div>
                         <div class=&quot;contact-item&quot;><strong>Email:</strong> <a href=&quot;mailto:john.smith@email.com&quot; class=&quot;contact-link&quot;>john.smith@email.com</a></div>
@@ -626,8 +661,8 @@
                 
                 
                 <div class=&quot;info-section&quot;>
-                    <div class=&quot;info-title&quot;>📝 Special Instructions</div>
-                    <div class=&quot;info-content&quot;>Need help with two large suitcases and a car seat for 3-year-old. Will tip well for assistance.</div>
+                    <div class=&quot;info-title&quot;>SPECIAL INSTRUCTIONS</div>
+                    <div class=&quot;info-content&quot;>Need help with two large suitcases and a car seat for 3-year-old.</div>
                 </div>
                 
                 
@@ -637,36 +672,42 @@
                 <!-- Ticket Stub -->
                 <div class=&quot;ticket-stub&quot;>
                     <div class=&quot;booking-ref&quot;>BOOKING REF: AC250359445</div>
-                    <div class=&quot;validity&quot;>Valid Today Only</div>
                 </div>
             </div>
         </div>
         
         <!-- Action Buttons -->
         <div class=&quot;actions-section&quot;>
-            <div class=&quot;actions-title&quot;>⚡ Action Required</div>
+            <div class=&quot;actions-title&quot;>ACTION REQUIRED</div>
             
             <a href=&quot;https://ac-shuttle-dev-worker.acshuttles157.workers.dev/accept/abc123def456&quot; class=&quot;action-button accept-button&quot;>
-                ✅ ACCEPT RIDE
+                ACCEPT RIDE
                 <div class=&quot;button-subtitle&quot;>Confirm this ticket</div>
             </a>
-
+            
             <a href=&quot;https://ac-shuttle-dev-worker.acshuttles157.workers.dev/deny/xyz789ghi012&quot; class=&quot;action-button decline-button&quot;>
-                ❌ DECLINE RIDE
+                DECLINE RIDE
                 <div class=&quot;button-subtitle&quot;>Cancel this ticket</div>
             </a>
+
+            
+            <a href=&quot;https://maps.google.com/maps?q=1247+Washington+Boulevard+to+LAX&quot; class=&quot;action-button map-button&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;>
+                VIEW ROUTE MAP
+                <div class=&quot;button-subtitle&quot;>See directions on Google Maps</div>
+            </a>
+            
         </div>
-        
+
         <!-- Security Notice -->
         <div class=&quot;security-notice&quot;>
             <div class=&quot;security-notice-text&quot;>
-                ⚠️ Once you choose, this ticket becomes invalid for security. Choose carefully!
+                IMPORTANT: Once you choose, this ticket becomes invalid for security. Choose carefully!
             </div>
         </div>
         
         <!-- Footer -->
         <div class=&quot;footer&quot;>
-            📧 Reply to this email to contact the passenger directly
+            Reply to this email to contact the passenger directly
         </div>
     </div>
 </body>
