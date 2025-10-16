@@ -186,26 +186,27 @@ function buildSubmissionRow({
   driverContact,
 }: SubmissionRowInput): (string | number | null)[] {
   return [
-    summary.transactionId,
-    submissionId,
-    summary.submittedAt,
-    summary.customerName,
-    summary.customerEmail,
-    sanitizeForSheet(summary.customerPhone),
-    summary.startLocation,
-    summary.endLocation,
-    summary.pickupTime,
-    summary.estimatedDistance,
-    summary.estimatedDuration,
-    summary.passengers,
-    summary.price,
-    summary.vehicleType ?? "",
-    summary.notes ?? "",
-    driverContact.name,
-    driverContact.email,
-    sanitizeForSheet(driverContact.phone),
-    DEFAULT_STATUS,
-    rawBody,
+    summary.transactionId,        // Column A (0)
+    submissionId,                 // Column B (1)
+    summary.submittedAt,          // Column C (2)
+    summary.customerName,         // Column D (3)
+    summary.customerEmail,        // Column E (4)
+    sanitizeForSheet(summary.customerPhone), // Column F (5)
+    summary.startLocation,        // Column G (6)
+    summary.endLocation,          // Column H (7)
+    summary.pickupTime,           // Column I (8)
+    summary.estimatedDistance,    // Column J (9)
+    summary.estimatedDuration,    // Column K (10)
+    summary.passengers,           // Column L (11)
+    summary.price,                // Column M (12)
+    summary.vehicleType ?? "",    // Column N (13)
+    summary.notes ?? "",          // Column O (14)
+    driverContact.name,           // Column P (15)
+    driverContact.email,          // Column Q (16)
+    sanitizeForSheet(driverContact.phone), // Column R (17)
+    DEFAULT_STATUS,               // Column S (18)
+    rawBody,                      // Column T (19)
+    summary.mapUrl ?? "",         // Column U (20) - Google Maps URL
   ];
 }
 
@@ -323,7 +324,7 @@ export async function checkAndUpdateBookingStatus(
   // Find the row with matching transaction ID (column A, index 0)
   let targetRowIndex = -1;
   let currentStatus: string | null = null;
-  
+
   for (let i = 0; i < rows.length; i++) {
     if (rows[i][0] === transactionId) {
       targetRowIndex = i;
@@ -346,7 +347,7 @@ export async function checkAndUpdateBookingStatus(
     };
   }
 
-  // Update the status in the specific cell
+  // Update the status in the specific cell (Column S)
   const statusRange = `Sheet1!S${targetRowIndex + 1}:S${targetRowIndex + 1}`;
   await sheetsClient.updateRange({
     sheetId: primarySheetId,

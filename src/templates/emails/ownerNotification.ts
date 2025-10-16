@@ -59,7 +59,8 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background-color: #f0f8f0;
             padding: 20px;
-            line-height: 1.4;
+            line-height: 1.6;
+            font-size: 16px;
         }
         
         .email-container {
@@ -76,13 +77,15 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         
         .header h1 {
             color: #2d5a3d;
-            font-size: 24px;
-            margin-bottom: 8px;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 800;
         }
-        
+
         .header p {
             color: #5a7a6a;
-            font-size: 16px;
+            font-size: 18px;
+            font-weight: 600;
         }
         
         /* Ticket Card Styles */
@@ -123,14 +126,16 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         .ticket-header::after { right: 0; }
         
         .ticket-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            letter-spacing: 1px;
         }
-        
+
         .ticket-subtitle {
-            font-size: 14px;
-            opacity: 0.9;
+            font-size: 16px;
+            opacity: 0.95;
+            font-weight: 600;
         }
         
         .ticket-body {
@@ -170,20 +175,20 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         }
 
         .route-label {
-            font-size: 12px;
+            font-size: 14px;
             color: #2d5a3d;
-            font-weight: 700;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
             display: block;
         }
 
         .route-location {
-            font-size: 18px;
-            color: #333;
-            font-weight: 500;
-            line-height: 1.4;
+            font-size: 17px;
+            color: #1a1a1a;
+            font-weight: 600;
+            line-height: 1.5;
             word-wrap: break-word;
             word-break: break-word;
             hyphens: auto;
@@ -199,19 +204,20 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         .fare-time-section {
             margin-bottom: 20px;
         }
-        
-        .fare-pickup-grid {
-            display: flex;
-            gap: 16px;
+
+        .fare-pickup-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px;
         }
-        
+
         .fare-box, .pickup-box {
-            flex: 1;
             text-align: center;
             padding: 20px;
             background: #f8fdf8;
             border-radius: 8px;
             border: 2px solid #d0e7d0;
+            width: 50%;
         }
         
         .pickup-date {
@@ -225,9 +231,10 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         .trip-details-section {
             margin-bottom: 20px;
         }
-        
-        .trip-details-grid {
-            display: flex;
+
+        .trip-details-table {
+            width: 100%;
+            border-collapse: collapse;
             border: 1px solid #d0e7d0;
             border-radius: 8px;
             overflow: hidden;
@@ -256,29 +263,29 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         }
         
         .detail-box {
-            flex: 1;
             text-align: center;
             padding: 20px 12px;
             border-right: 1px solid #d0e7d0;
+            width: 33.33%;
         }
-        
-        .detail-box:last-child {
+
+        .detail-box-last {
             border-right: none;
         }
         
         .detail-label {
-            font-size: 16px;
+            font-size: 14px;
             color: #2d5a3d;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
             margin-bottom: 10px;
-            font-weight: 700;
+            font-weight: 800;
         }
-        
+
         .detail-value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 900;
-            color: #2d5a3d;
+            color: #1a4d2e;
         }
         
         /* Information Sections */
@@ -291,18 +298,18 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         }
         
         .info-title {
-            font-size: 20px;
-            color: #2d5a3d;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
-            font-weight: 700;
-        }
-        
-        .info-content {
-            color: #333;
             font-size: 16px;
-            line-height: 1.5;
+            color: #1a4d2e;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 14px;
+            font-weight: 800;
+        }
+
+        .info-content {
+            color: #1a1a1a;
+            font-size: 16px;
+            line-height: 1.6;
             word-wrap: break-word;
             word-break: break-word;
         }
@@ -374,63 +381,51 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         }
         
         .actions-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #2d5a3d;
+            font-size: 20px;
+            font-weight: 800;
+            color: #1a4d2e;
             margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
         .action-button {
             display: block;
             width: 100%;
-            padding: 18px 24px;
-            margin-bottom: 12px;
+            padding: 22px 28px;
+            margin-bottom: 14px;
             border-radius: 12px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 16px;
+            text-decoration: none !important;
+            font-weight: 800;
+            font-size: 18px;
             text-align: center;
             border: none;
-            transition: all 0.2s ease;
+            letter-spacing: 0.5px;
         }
-        
+
         .accept-button {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            color: white;
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+            background-color: #059669;
+            color: #ffffff !important;
+            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
         }
-        
-        .accept-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
-        }
-        
+
         .decline-button {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: white;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+            background-color: #dc2626;
+            color: #ffffff !important;
+            box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
         }
-        
-        .decline-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
-        }
-        
+
         .button-subtitle {
-            font-size: 12px;
-            opacity: 0.9;
-            margin-top: 4px;
+            font-size: 13px;
+            margin-top: 6px;
+            font-weight: 600;
+            color: #ffffff !important;
         }
 
         .map-button {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
-
-        .map-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+            background-color: #2563eb;
+            color: #ffffff !important;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
         }
 
         /* Security Notice */
@@ -444,9 +439,10 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         }
         
         .security-notice-text {
-            font-size: 13px;
-            color: #a16207;
-            line-height: 1.4;
+            font-size: 14px;
+            color: #92400e;
+            line-height: 1.5;
+            font-weight: 600;
         }
         
         /* Footer */
@@ -462,11 +458,12 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         /* Mobile Responsive */
         @media only screen and (max-width: 600px) {
             body {
-                padding: 10px !important;
+                padding: 12px !important;
+                font-size: 15px !important;
             }
 
             .ticket-body {
-                padding: 16px !important;
+                padding: 18px !important;
             }
 
             .route-table {
@@ -476,31 +473,138 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
             .route-cell {
                 display: block !important;
                 width: 100% !important;
-                padding: 12px !important;
+                padding: 14px !important;
             }
 
             .route-arrow-cell {
                 display: block !important;
                 width: 100% !important;
-                padding: 8px !important;
+                padding: 10px !important;
             }
 
             .route-arrow {
                 transform: rotate(90deg);
-                font-size: 20px !important;
+                font-size: 22px !important;
+            }
+
+            .route-label {
+                font-size: 13px !important;
             }
 
             .route-location {
                 font-size: 16px !important;
             }
 
-            .fare-pickup-grid {
-                flex-direction: column;
-                gap: 12px;
+            .fare-pickup-table {
+                border-spacing: 0 !important;
             }
 
             .fare-box, .pickup-box {
+                display: block !important;
+                width: 100% !important;
+                padding: 18px !important;
+                margin-bottom: 8px !important;
+            }
+
+            .fare-pickup-table tr {
+                display: block !important;
+            }
+
+            .fare-pickup-table td {
+                display: block !important;
+                width: 100% !important;
+            }
+
+            .detail-label {
+                font-size: 15px !important;
+            }
+
+            .detail-value {
+                font-size: 24px !important;
+            }
+
+            .pickup-date {
+                font-size: 17px !important;
+            }
+
+            .trip-details-table tr {
+                display: block !important;
+            }
+
+            .trip-details-table td {
+                display: block !important;
+                width: 100% !important;
+            }
+
+            .detail-box {
+                border-right: none !important;
+                border-bottom: 1px solid #d0e7d0 !important;
                 padding: 16px !important;
+            }
+
+            .detail-box-last {
+                border-bottom: none !important;
+            }
+
+            .info-title {
+                font-size: 18px !important;
+            }
+
+            .info-content {
+                font-size: 15px !important;
+            }
+
+            .header h1 {
+                font-size: 24px !important;
+            }
+
+            .header p {
+                font-size: 16px !important;
+            }
+
+            .ticket-title {
+                font-size: 20px !important;
+            }
+
+            .ticket-subtitle {
+                font-size: 15px !important;
+            }
+
+            .actions-title {
+                font-size: 18px !important;
+            }
+
+            .action-button {
+                padding: 20px 24px !important;
+                font-size: 17px !important;
+            }
+
+            .button-subtitle {
+                font-size: 12px !important;
+            }
+        }
+
+        /* Extra Small Devices */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 10px !important;
+                font-size: 14px !important;
+            }
+
+            .ticket-body {
+                padding: 14px !important;
+            }
+
+            .route-label {
+                font-size: 12px !important;
+            }
+
+            .route-location {
+                font-size: 15px !important;
+            }
+
+            .detail-label {
+                font-size: 14px !important;
             }
 
             .detail-value {
@@ -511,62 +615,29 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 font-size: 16px !important;
             }
 
-            .trip-details-grid {
-                flex-direction: column;
-            }
-
-            .detail-box {
-                border-right: none !important;
-                border-bottom: 1px solid #d0e7d0;
-                padding: 14px !important;
-            }
-
-            .detail-box:last-child {
-                border-bottom: none !important;
+            .info-title {
+                font-size: 17px !important;
             }
 
             .info-content {
-                font-size: 15px !important;
+                font-size: 14px !important;
             }
 
             .header h1 {
-                font-size: 20px !important;
+                font-size: 22px !important;
             }
 
             .header p {
-                font-size: 14px !important;
-            }
-
-            .actions-title {
-                font-size: 16px !important;
-            }
-        }
-
-        /* Extra Small Devices */
-        @media only screen and (max-width: 480px) {
-            body {
-                padding: 8px !important;
-            }
-
-            .ticket-body {
-                padding: 12px !important;
-            }
-
-            .route-location {
-                font-size: 14px !important;
-            }
-
-            .detail-value {
-                font-size: 20px !important;
-            }
-
-            .info-content {
-                font-size: 14px !important;
+                font-size: 15px !important;
             }
 
             .action-button {
-                padding: 16px 20px !important;
-                font-size: 15px !important;
+                padding: 18px 22px !important;
+                font-size: 16px !important;
+            }
+
+            .button-subtitle {
+                font-size: 11px !important;
             }
         }
     </style>
@@ -606,35 +677,39 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
                 
                 <!-- Fare & Pickup Time -->
                 <div class="fare-time-section">
-                    <div class="fare-pickup-grid">
-                        <div class="fare-box">
-                            <div class="detail-label">Fare</div>
-                            <div class="detail-value">${data.price}</div>
-                        </div>
-                        <div class="pickup-box">
-                            <div class="detail-label">Pickup Time</div>
-                            <div class="detail-value">${data.pickupTime}</div>
-                            <div class="pickup-date">${data.pickupDate}</div>
-                        </div>
-                    </div>
+                    <table class="fare-pickup-table" width="100%" cellpadding="0" cellspacing="8" border="0" role="presentation">
+                        <tr>
+                            <td class="fare-box" width="50%" align="center" valign="middle" style="text-align: center; padding: 20px; background: #f8fdf8; border-radius: 8px; border: 2px solid #d0e7d0;">
+                                <div class="detail-label" style="font-size: 14px; color: #2d5a3d; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 800;">Fare</div>
+                                <div class="detail-value" style="font-size: 26px; font-weight: 900; color: #1a4d2e;">${data.price}</div>
+                            </td>
+                            <td class="pickup-box" width="50%" align="center" valign="middle" style="text-align: center; padding: 20px; background: #f8fdf8; border-radius: 8px; border: 2px solid #d0e7d0;">
+                                <div class="detail-label" style="font-size: 14px; color: #2d5a3d; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 800;">Pickup Time</div>
+                                <div class="detail-value" style="font-size: 26px; font-weight: 900; color: #1a4d2e;">${data.pickupTime}</div>
+                                <div class="pickup-date" style="font-size: 18px; color: #666; font-weight: 600; margin-top: 6px;">${data.pickupDate}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Trip Details -->
                 <div class="trip-details-section">
-                    <div class="trip-details-grid">
-                        <div class="detail-box">
-                            <div class="detail-label">Passengers</div>
-                            <div class="detail-value">${data.passengers}</div>
-                        </div>
-                        <div class="detail-box">
-                            <div class="detail-label">Duration</div>
-                            <div class="detail-value">${data.estimatedDuration}</div>
-                        </div>
-                        <div class="detail-box">
-                            <div class="detail-label">Distance</div>
-                            <div class="detail-value">${data.estimatedDistance}</div>
-                        </div>
-                    </div>
+                    <table class="trip-details-table" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="border: 1px solid #d0e7d0; border-radius: 8px;">
+                        <tr>
+                            <td class="detail-box" width="33.33%" align="center" valign="middle" style="text-align: center; padding: 20px 12px; border-right: 1px solid #d0e7d0;">
+                                <div class="detail-label" style="font-size: 14px; color: #2d5a3d; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 800;">Passengers</div>
+                                <div class="detail-value" style="font-size: 26px; font-weight: 900; color: #1a4d2e;">${data.passengers}</div>
+                            </td>
+                            <td class="detail-box" width="33.33%" align="center" valign="middle" style="text-align: center; padding: 20px 12px; border-right: 1px solid #d0e7d0;">
+                                <div class="detail-label" style="font-size: 14px; color: #2d5a3d; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 800;">Duration</div>
+                                <div class="detail-value" style="font-size: 26px; font-weight: 900; color: #1a4d2e;">${data.estimatedDuration}</div>
+                            </td>
+                            <td class="detail-box detail-box-last" width="33.33%" align="center" valign="middle" style="text-align: center; padding: 20px 12px;">
+                                <div class="detail-label" style="font-size: 14px; color: #2d5a3d; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 800;">Distance</div>
+                                <div class="detail-value" style="font-size: 26px; font-weight: 900; color: #1a4d2e;">${data.estimatedDistance}</div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 
                 <!-- Passenger Details -->
@@ -668,21 +743,21 @@ export function generateOwnerNotificationEmail(data: OwnerNotificationData): { h
         <!-- Action Buttons -->
         <div class="actions-section">
             <div class="actions-title">ACTION REQUIRED</div>
-            
-            <a href="${data.acceptUrl}" class="action-button accept-button">
-                ACCEPT RIDE
-                <div class="button-subtitle">Confirm this ticket</div>
+
+            <a href="${data.acceptUrl}" class="action-button accept-button" style="display: block; width: 100%; padding: 22px 28px; margin-bottom: 14px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 18px; text-align: center; background-color: #059669; color: #ffffff; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4); letter-spacing: 0.5px;">
+                <span style="color: #ffffff; text-decoration: none;">ACCEPT RIDE</span>
+                <div class="button-subtitle" style="font-size: 13px; margin-top: 6px; font-weight: 600; color: #ffffff;">Confirm this ticket</div>
             </a>
-            
-            <a href="${data.denyUrl}" class="action-button decline-button">
-                DECLINE RIDE
-                <div class="button-subtitle">Cancel this ticket</div>
+
+            <a href="${data.denyUrl}" class="action-button decline-button" style="display: block; width: 100%; padding: 22px 28px; margin-bottom: 14px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 18px; text-align: center; background-color: #dc2626; color: #ffffff; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4); letter-spacing: 0.5px;">
+                <span style="color: #ffffff; text-decoration: none;">DECLINE RIDE</span>
+                <div class="button-subtitle" style="font-size: 13px; margin-top: 6px; font-weight: 600; color: #ffffff;">Cancel this ticket</div>
             </a>
 
             ${data.mapUrl ? `
-            <a href="${data.mapUrl}" class="action-button map-button" target="_blank" rel="noopener noreferrer">
-                VIEW ROUTE MAP
-                <div class="button-subtitle">See directions on Google Maps</div>
+            <a href="${data.mapUrl}" class="action-button map-button" target="_blank" rel="noopener noreferrer" style="display: block; width: 100%; padding: 22px 28px; margin-bottom: 14px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 18px; text-align: center; background-color: #2563eb; color: #ffffff; box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4); letter-spacing: 0.5px;">
+                <span style="color: #ffffff; text-decoration: none;">VIEW ROUTE MAP</span>
+                <div class="button-subtitle" style="font-size: 13px; margin-top: 6px; font-weight: 600; color: #ffffff;">See directions on Google Maps</div>
             </a>
             ` : ''}
         </div>

@@ -51,8 +51,7 @@ import {
   generateCustomerDenialEmail,
   generateOwnerDeliveryNotificationEmail,
   generateCustomerSubmissionAckEmail,
-  formatTicketDate,
-  formatTicketTime,
+  formatPickupDateTime,
   type OwnerNotificationData,
   type CustomerConfirmationData,
   type OwnerDeliveryNotificationData,
@@ -68,6 +67,7 @@ interface Env extends SecurityEnv, CoordinationEnv, TripQuoteEnv {
   RESEND_API_KEY: string;
   CUSTOMER_FROM_EMAIL: string;
   OWNER_EMAIL: string;
+  WORKER_URL?: string;
   RESEND_DRY_RUN?: string;
   RESEND_WEBHOOK_SECRET?: string;
   VERBOSE_LOGGING?: string;
@@ -540,42 +540,53 @@ async function handleOwnerDecision(
       { metadata: decisionMetadata }
     );
     
-    // If a decision was already made (current status is not the new decision and not "Pending Review"), 
+    // If a decision was already made (current status is not the new decision and not "Pending Review"),
     // show the "decision already made" page
     if (statusResult.currentStatus !== newDecisionStatus && statusResult.currentStatus !== 'Pending Review') {
+      // Fetch booking details to show on the page
+      let bookingDetailsForPage;
+      try {
+        bookingDetailsForPage = await fetchBookingDetails(tokenData.transactionId, env);
+      } catch (error) {
+        console.warn('Could not fetch booking details for decision already made page:', error);
+        bookingDetailsForPage = null;
+      }
+
       return new Response(
         renderDecisionAlreadyMadePage(
-          statusResult.currentStatus,
+          statusResult.currentStatus || 'Unknown',
           tokenData.transactionId,
           customerDetails.name,
           customerDetails.email,
-          env.OWNER_EMAIL
+          env.OWNER_EMAIL,
+          bookingDetailsForPage
         ),
         { status: 200, headers: { 'Content-Type': 'text/html' } }
       );
     }
-    
+
+    // Fetch booking details (needed for both email and success page)
+    let bookingDetails: Awaited<ReturnType<typeof fetchBookingDetails>>;
+    try {
+      bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
+    } catch (bookingError) {
+      console.warn('Could not fetch booking details from Google Sheets, using minimal fallback data:', bookingError);
+      bookingDetails = {
+        startLocation: 'Pickup Location (details unavailable)',
+        endLocation: 'Destination (details unavailable)',
+        pickupTime: 'Time TBD',
+        pickupDate: 'Date TBD',
+        price: 'Price TBD',
+        passengers: '1',
+        estimatedDuration: 'Duration TBD',
+        bookingRef: tokenData.transactionId.slice(0, 10).toUpperCase(),
+        customerName: tokenData.customerName,
+        notes: 'Booking details could not be retrieved. Please contact us for full trip information.',
+      };
+    }
+
     // Send customer notification
     if (!env.RESEND_DRY_RUN || env.RESEND_DRY_RUN.toLowerCase() !== "true") {
-      let bookingDetails: Awaited<ReturnType<typeof fetchBookingDetails>>;
-      try {
-        bookingDetails = await fetchBookingDetails(tokenData.transactionId, env);
-      } catch (bookingError) {
-        console.warn('Could not fetch booking details from Google Sheets, using minimal fallback data:', bookingError);
-        bookingDetails = {
-          startLocation: 'Pickup Location (details unavailable)',
-          endLocation: 'Destination (details unavailable)',
-          pickupTime: 'Time TBD',
-          pickupDate: formatTicketDate(new Date().toISOString()),
-          price: 'Price TBD',
-          passengers: '1',
-          estimatedDuration: 'Duration TBD',
-          bookingRef: tokenData.transactionId.slice(0, 10).toUpperCase(),
-          customerName: tokenData.customerName,
-          notes: 'Booking details could not be retrieved. Please contact us for full trip information.',
-        };
-      }
-
       const customerEmail = buildCustomerNotificationEmail(decision, customerDetails, env, bookingDetails);
 
       // Add tracking metadata for delivery confirmation
@@ -603,7 +614,24 @@ async function handleOwnerDecision(
         });
       }
     }
-    
+
+    // Send owner confirmation email with trip details
+    if (!env.RESEND_DRY_RUN || env.RESEND_DRY_RUN.toLowerCase() !== "true") {
+      try {
+        const ownerConfirmEmail = buildOwnerConfirmationEmail(
+          decision,
+          tokenData.transactionId,
+          env,
+          bookingDetails,
+          customerDetails
+        );
+        await sendEmail(env.RESEND_API_KEY, ownerConfirmEmail, isVerbose(env));
+      } catch (emailError) {
+        console.error('Failed to send owner confirmation email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
     return new Response(
       renderSuccessPage(decision, tokenData.transactionId, customerDetails.name, bookingDetails),
       { status: 200, headers: { 'Content-Type': 'text/html' } }
@@ -622,13 +650,23 @@ async function handleOwnerDecision(
     console.error(`Owner decision handling error:`, error);
 
     if (error instanceof DecisionAlreadyMadeError) {
+      // Try to fetch booking details
+      let bookingDetailsForPage;
+      try {
+        bookingDetailsForPage = await fetchBookingDetails(error.tokenData.transactionId, env);
+      } catch (fetchError) {
+        console.warn('Could not fetch booking details for decision already made error:', fetchError);
+        bookingDetailsForPage = null;
+      }
+
       return new Response(
         renderDecisionAlreadyMadePage(
           error.status,
           error.tokenData.transactionId,
           error.tokenData.customerName,
           error.tokenData.customerEmail,
-          env.OWNER_EMAIL
+          env.OWNER_EMAIL,
+          bookingDetailsForPage
         ),
         { status: 200, headers: { 'Content-Type': 'text/html' } }
       );
@@ -666,6 +704,7 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
   estimatedDuration: string;
   bookingRef: string;
   customerName?: string;
+  customerPhone?: string;
   notes?: string;
   mapUrl?: string;
 }> {
@@ -694,17 +733,21 @@ async function fetchBookingDetails(transactionId: string, env: Env): Promise<{
   for (let i = 0; i < rows.length; i++) {
     if (rows[i][0] === transactionId) {
       const row = rows[i];
+      const rawPickupTime = row[8] as string || '';
+      const { date, time } = formatPickupDateTime(rawPickupTime);
+
       return {
-        startLocation: row[6] as string || '',
-        endLocation: row[7] as string || '',
-        pickupTime: row[8] as string || '',
-        pickupDate: formatTicketDate(row[8] as string || ''),
-        estimatedDuration: row[10] as string || '',
-        passengers: row[11] as string || '',
-        price: row[12] as string || '',
-        customerName: row[3] as string || '',
-        notes: (row[14] as string) || undefined,
-        mapUrl: (row[15] as string) || undefined,
+        startLocation: row[6] as string || '',      // Column G
+        endLocation: row[7] as string || '',        // Column H
+        pickupTime: time,                           // Column I - formatted time
+        pickupDate: date,                           // Formatted date from same field
+        estimatedDuration: row[10] as string || '', // Column K
+        passengers: row[11] as string || '',        // Column L
+        price: row[12] as string || '',             // Column M
+        customerName: row[3] as string || '',       // Column D
+        customerPhone: (row[5] as string) || undefined, // Column F
+        notes: (row[14] as string) || undefined,    // Column O
+        mapUrl: (row[20] as string) || undefined,   // Column U (after rawBody)
         bookingRef: transactionId.slice(0, 10).toUpperCase(),
       };
     }
@@ -721,6 +764,7 @@ function buildCustomerNotificationEmail(
     startLocation: string;
     endLocation: string;
     pickupTime: string;
+    pickupDate?: string;
     price: string;
     passengers: string;
     estimatedDuration: string;
@@ -730,14 +774,16 @@ function buildCustomerNotificationEmail(
   }
 ): EmailPayload {
   const isAccepted = decision === 'accepted';
-  const subject = `Your AC Shuttles Booking ${isAccepted ? 'Confirmed' : 'Update'}`;
+  const subject = isAccepted
+    ? `Your AC Shuttles Booking is Confirmed!`
+    : `Update on Your AC Shuttles Booking`;
 
   if (isAccepted) {
     const templateData: CustomerConfirmationData = {
       startLocation: bookingDetails.startLocation,
       endLocation: bookingDetails.endLocation,
-      pickupTime: formatTicketTime(bookingDetails.pickupTime),
-      pickupDate: formatTicketDate(bookingDetails.pickupTime),
+      pickupTime: bookingDetails.pickupTime, // Already formatted from fetchBookingDetails
+      pickupDate: bookingDetails.pickupDate || bookingDetails.pickupTime, // Already formatted from fetchBookingDetails
       price: bookingDetails.price,
       passengers: bookingDetails.passengers,
       estimatedDuration: bookingDetails.estimatedDuration,
@@ -750,9 +796,11 @@ function buildCustomerNotificationEmail(
       mapUrl: bookingDetails.mapUrl,
       bookingRef: bookingDetails.bookingRef,
     };
-    
+
     const { html, text } = generateCustomerConfirmationEmail(templateData);
-    
+
+    console.log('Customer ACCEPTANCE email - To:', customer.email, 'Subject:', subject);
+
     return {
       from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
       to: customer.email,
@@ -766,8 +814,8 @@ function buildCustomerNotificationEmail(
     const templateData: CustomerDenialData = {
       startLocation: bookingDetails.startLocation,
       endLocation: bookingDetails.endLocation,
-      pickupTime: formatTicketTime(bookingDetails.pickupTime),
-      pickupDate: formatTicketDate(bookingDetails.pickupTime),
+      pickupTime: bookingDetails.pickupTime, // Already formatted from fetchBookingDetails
+      pickupDate: bookingDetails.pickupDate || bookingDetails.pickupTime, // Already formatted from fetchBookingDetails
       passengers: bookingDetails.passengers,
       customerName: customer.name,
       customerEmail: customer.email,
@@ -777,9 +825,11 @@ function buildCustomerNotificationEmail(
       mapUrl: bookingDetails.mapUrl,
       bookingRef: bookingDetails.bookingRef,
     };
-    
+
     const { html, text } = generateCustomerDenialEmail(templateData);
-    
+
+    console.log('Customer DENIAL email - To:', customer.email, 'Subject:', subject);
+
     return {
       from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
       to: customer.email,
@@ -789,6 +839,95 @@ function buildCustomerNotificationEmail(
       tags: ["booking-denied", "customer-notification"],
     };
   }
+}
+
+/**
+ * Generate iCalendar (ICS) content for the trip
+ */
+function generateCalendarEvent(transactionId: string, bookingDetails: {
+  startLocation: string;
+  pickupTime: string;
+  pickupDate: string;
+  customerName: string;
+  endLocation: string;
+  passengers: string;
+  price: string;
+  estimatedDuration: string;
+  notes?: string;
+  bookingRef: string;
+}): string {
+  // Parse the date and time to create a proper datetime
+  // Format: MM/DD/YYYY and H:MM AM/PM
+  const dateMatch = bookingDetails.pickupDate.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const timeMatch = bookingDetails.pickupTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+
+  if (!dateMatch || !timeMatch) {
+    throw new Error('Invalid date or time format');
+  }
+
+  const [, month, day, year] = dateMatch;
+  let [, hours, minutes, ampm] = timeMatch;
+
+  // Convert to 24-hour format
+  let hour24 = parseInt(hours);
+  if (ampm.toUpperCase() === 'PM' && hour24 !== 12) {
+    hour24 += 12;
+  } else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
+    hour24 = 0;
+  }
+
+  // Create ISO datetime strings (format: YYYYMMDDTHHmmss)
+  const startDateTime = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}T${String(hour24).padStart(2, '0')}${minutes}00`;
+
+  // Calculate end time based on estimated duration
+  const durationMatch = bookingDetails.estimatedDuration.match(/(\d+)/);
+  const durationMinutes = durationMatch ? parseInt(durationMatch[1]) : 60;
+  const startDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), hour24, parseInt(minutes));
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+  const endDateTime = `${endDate.getFullYear()}${String(endDate.getMonth() + 1).padStart(2, '0')}${String(endDate.getDate()).padStart(2, '0')}T${String(endDate.getHours()).padStart(2, '0')}${String(endDate.getMinutes()).padStart(2, '0')}00`;
+
+  // Create alarm for 2 hours before (120 minutes)
+  const alarmDateTime = new Date(startDate.getTime() - 120 * 60000);
+  const alarmTrigger = `-PT120M`; // 2 hours before
+
+  // Build description
+  const description = [
+    `Pickup: ${bookingDetails.startLocation}`,
+    `Destination: ${bookingDetails.endLocation}`,
+    `Customer: ${bookingDetails.customerName}`,
+    `Passengers: ${bookingDetails.passengers}`,
+    `Price: ${bookingDetails.price}`,
+    `Duration: ${bookingDetails.estimatedDuration}`,
+    `Booking Ref: ${bookingDetails.bookingRef}`,
+    bookingDetails.notes ? `\\n\\nNotes: ${bookingDetails.notes}` : ''
+  ].filter(Boolean).join('\\n');
+
+  // Generate ICS content
+  const icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//AC Shuttles//Booking System//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${transactionId}@acshuttles.com`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+    `DTSTART:${startDateTime}`,
+    `DTEND:${endDateTime}`,
+    `SUMMARY:AC Shuttles - ${bookingDetails.customerName}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${bookingDetails.startLocation}`,
+    'STATUS:CONFIRMED',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT2H',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:Reminder: Pickup for ${bookingDetails.customerName} in 2 hours`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  return icsContent;
 }
 
 function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: string, customerName: string, bookingDetails: {
@@ -805,6 +944,22 @@ function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: strin
   mapUrl?: string;
 }): string {
   const isAccepted = decision === 'accepted';
+
+  // Generate calendar data for accepted bookings
+  let calendarData = '';
+  if (isAccepted && bookingDetails.pickupDate) {
+    try {
+      const icsContent = generateCalendarEvent(transactionId, {
+        ...bookingDetails,
+        customerName: customerName,
+        pickupDate: bookingDetails.pickupDate
+      });
+      calendarData = `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`;
+    } catch (error) {
+      console.error('Error generating calendar event:', error);
+    }
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -843,6 +998,47 @@ function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: strin
         }
         .route-arrow { margin: 0 12px; color: #6c757d; }
         .location { font-weight: 500; color: #212529; }
+        .calendar-button-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .calendar-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+        .calendar-title {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .calendar-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        .calendar-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .calendar-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            background: #f8f9ff;
+        }
         .next-steps {
             background: ${isAccepted ? '#d4edda' : '#f8d7da'};
             border-left: 4px solid ${isAccepted ? '#28a745' : '#dc3545'};
@@ -912,6 +1108,19 @@ function renderSuccessPage(decision: 'accepted' | 'denied', transactionId: strin
             ` : ''}
         </div>
 
+        ${isAccepted && calendarData ? `
+        <div class="calendar-button-container">
+            <div class="calendar-icon">📅</div>
+            <div class="calendar-title">Add Trip to Your Calendar</div>
+            <div class="calendar-subtitle">
+                Get a reminder 2 hours before pickup • Includes customer details and route
+            </div>
+            <a href="${calendarData}" download="ac-shuttles-trip-${escapeHtml(bookingDetails.bookingRef)}.ics" class="calendar-button">
+                Add to Calendar
+            </a>
+        </div>
+        ` : ''}
+
         <div class="next-steps">
             <div class="next-steps-title">Next Steps</div>
             <div class="next-steps-text">
@@ -957,23 +1166,43 @@ function renderErrorPage(title: string, message: string): string {
 </html>`;
 }
 
-function renderDecisionAlreadyMadePage(currentStatus: string, transactionId: string, customerName: string, customerEmail: string, ownerEmail: string): string {
+function renderDecisionAlreadyMadePage(
+  currentStatus: string,
+  transactionId: string,
+  customerName: string,
+  customerEmail: string,
+  ownerEmail: string,
+  bookingDetails?: {
+    startLocation: string;
+    endLocation: string;
+    pickupTime: string;
+    pickupDate?: string;
+    price: string;
+    passengers: string;
+    estimatedDuration: string;
+    bookingRef: string;
+    customerName?: string;
+    notes?: string;
+  } | null
+): string {
   const isAccepted = currentStatus.toLowerCase() === 'accepted';
   const statusColor = isAccepted ? '#28a745' : '#dc3545';
   const statusText = isAccepted ? 'ACCEPTED' : 'DECLINED';
-  
+
   const emailSubject = `Request to Change Booking Decision - ${customerName}`;
-  const emailBody = `Hi,
+  const emailBody = `Hi Emran,
 
-I need to change the decision for booking request:
+There has been a change needed for a reservation with AC Shuttles.
 
-Customer: ${customerName} (${customerEmail})
-Transaction ID: ${transactionId}
+Customer: ${customerName}
+Email: ${customerEmail}
+Booking Reference: ${bookingDetails?.bookingRef || transactionId.slice(0, 10)}
 Current Status: ${currentStatus}
 
-Please review and make the necessary changes.
+[Please provide the details of the change needed here]
 
-Thank you!`;
+Best,
+AC Shuttles`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1050,11 +1279,71 @@ Thank you!`;
             margin-bottom: 24px;
             text-align: center;
         ">${statusText}</div>
-        <div class="title">Decision Already Made</div>
+        <div class="title">Reservation Already ${statusText}</div>
         <div class="message">
-            A decision has already been made for this booking request. If you need to change this decision, please use the contact button below.
+            Hi ${escapeHtml(customerName)},<br><br>
+            You recently requested a reservation with AC Shuttles. This booking has already been ${isAccepted ? 'accepted' : 'declined'}.
+            ${isAccepted
+              ? 'The customer has been notified and received confirmation with pickup details.'
+              : 'The customer has been notified of the cancellation.'
+            }
         </div>
-        
+
+        ${bookingDetails ? `
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 2px solid ${statusColor};">
+            <div style="text-align: center; margin-bottom: 16px;">
+                <span style="font-weight: 600; color: #212529;">${escapeHtml(bookingDetails.startLocation)}</span>
+                <span style="margin: 0 12px; color: #6c757d;">→</span>
+                <span style="font-weight: 600; color: #212529;">${escapeHtml(bookingDetails.endLocation)}</span>
+            </div>
+        </div>
+
+        <div class="status-info">
+            <div style="font-size: 12px; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Reservation Details</div>
+            <div class="detail-row">
+                <span class="detail-label">Customer:</span>
+                <span class="detail-value">${escapeHtml(customerName)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value">${escapeHtml(customerEmail)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Pickup Date:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupDate || 'Not specified')}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Pickup Time:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupTime)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Passengers:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.passengers)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Price:</span>
+                <span class="detail-value" style="font-weight: 600;">${escapeHtml(bookingDetails.price)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Duration:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.estimatedDuration)}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Reference:</span>
+                <span class="detail-value" style="font-family: monospace;">${escapeHtml(bookingDetails.bookingRef)}</span>
+            </div>
+            ${bookingDetails.notes ? `
+            <div class="detail-row">
+                <span class="detail-label">Notes:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.notes)}</span>
+            </div>
+            ` : ''}
+            <div class="detail-row">
+                <span class="detail-label">Status:</span>
+                <span class="detail-value current-status">${escapeHtml(currentStatus)}</span>
+            </div>
+        </div>
+        ` : `
         <div class="status-info">
             <div class="detail-row">
                 <span class="detail-label">Customer:</span>
@@ -1065,13 +1354,18 @@ Thank you!`;
                 <span class="detail-value">${escapeHtml(customerEmail)}</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">Transaction ID:</span>
-                <span class="detail-value">${transactionId.slice(0, 16)}...</span>
+                <span class="detail-label">Reference:</span>
+                <span class="detail-value" style="font-family: monospace;">${transactionId.slice(0, 10).toUpperCase()}</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">Current Status:</span>
+                <span class="detail-label">Status:</span>
                 <span class="detail-value current-status">${escapeHtml(currentStatus)}</span>
             </div>
+        </div>
+        `}
+
+        <div style="text-align: center; margin: 24px 0; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+            <p style="margin: 0; font-size: 14px; color: #495057;">Need to make a change to this reservation?</p>
         </div>
         
         <div class="button-container">
@@ -1093,6 +1387,13 @@ ${emailBody}</div>
         
         <div class="note">
             Click the email button to open your mail client, or use "Show Email Template" to copy the message manually.
+        </div>
+
+        <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e9ecef; color: #6c757d; font-size: 14px;">
+            <p style="margin: 8px 0;">Best,</p>
+            <p style="margin: 8px 0; font-weight: 600; color: #212529;">Emran</p>
+            <p style="margin: 8px 0; font-weight: 600; color: #212529;">AC Shuttles</p>
+            <p style="margin: 8px 0;">${escapeHtml(ownerEmail)}</p>
         </div>
         
         <script>
@@ -1122,6 +1423,10 @@ type EmailPayload = {
   tags?: string[] | Record<string, string>;
   replyTo?: string;
   headers?: Record<string, string>;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+  }>;
 };
 
 type ResendResult = {
@@ -1273,22 +1578,25 @@ async function buildOwnerEmailPayload({
   const acceptUrl = `${baseUrl}/accept/${acceptToken}`;
   const denyUrl = `${baseUrl}/deny/${denyToken}`;
   
+  // Format the pickup datetime for display
+  const { date, time } = formatPickupDateTime(summary.pickupTime);
+
   // Prepare data for ticket template
   const templateData: OwnerNotificationData = {
     startLocation: summary.startLocation,
     endLocation: summary.endLocation,
-    pickupTime: formatTicketTime(summary.pickupTime),
-    pickupDate: formatTicketDate(summary.pickupTime),
+    pickupTime: time, // Formatted time: "1:52 PM"
+    pickupDate: date, // Formatted date: "10/16/2025"
     price: summary.price === "TBD" ? "TBD" : summary.price,
     passengers: summary.passengers,
     estimatedDuration: summary.estimatedDuration,
     estimatedDistance: summary.estimatedDistance,
     customerName: summary.customerName,
     customerEmail: summary.customerEmail,
-    customerPhone: summary.customerPhone,
-    vehicleType: summary.vehicleType,
-    notes: summary.notes,
-    mapUrl: summary.mapUrl,
+    customerPhone: summary.customerPhone ?? null,
+    vehicleType: summary.vehicleType ?? undefined,
+    notes: summary.notes ?? undefined,
+    mapUrl: summary.mapUrl ?? undefined,
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
     acceptUrl,
     denyUrl
@@ -1296,7 +1604,9 @@ async function buildOwnerEmailPayload({
   
   // Generate ticket-style email
   const { html, text } = generateOwnerNotificationEmail(templateData);
-  const subject = `${templateData.price} Ride Request – ${templateData.startLocation.split(',')[0]} → ${templateData.endLocation.split(',')[0]}`;
+  const subject = `ACShuttle-notification-${templateData.price}-${summary.customerName}-${templateData.bookingRef}`;
+
+  console.log('Owner NOTIFICATION email (new booking) - To:', env.OWNER_EMAIL, 'Subject:', subject);
 
   return {
     from: `AC Shuttles Booking System <${env.CUSTOMER_FROM_EMAIL}>`,
@@ -1304,7 +1614,7 @@ async function buildOwnerEmailPayload({
     subject,
     html,
     text,
-    tags: ["booking-alert", "owner-notification", "action-required"],
+    tags: ["booking-alert", "owner-notification", "action-required", "AC Shuttles"],
     replyTo: summary.customerEmail, // Allow direct reply to customer
     headers: {
       'X-Entity-Ref-ID': summary.transactionId.slice(0, 16),
@@ -1328,20 +1638,23 @@ function buildCustomerSubmissionAckEmail(
   summary: CoordinationResult["summary"],
   env: Env
 ): EmailPayload {
+  // Format the pickup datetime for display
+  const { date, time } = formatPickupDateTime(summary.pickupTime);
+
   const templateData: CustomerSubmissionAckData = {
     customerName: summary.customerName,
     customerEmail: summary.customerEmail,
     startLocation: summary.startLocation,
     endLocation: summary.endLocation,
-    pickupTime: formatTicketTime(summary.pickupTime),
-    pickupDate: formatTicketDate(summary.pickupTime),
+    pickupTime: time, // Formatted time: "1:52 PM"
+    pickupDate: date, // Formatted date: "10/16/2025"
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
     contactPhone: env.DRIVER_CONTACT_PHONE || '',
     contactEmail: env.DRIVER_CONTACT_EMAIL || env.CUSTOMER_FROM_EMAIL,
   };
 
   const { html, text } = generateCustomerSubmissionAckEmail(templateData);
-  const subject = `Thank You - Ride Request Received`;
+  const subject = `Thank You - Your Ride Request Has Been Received`;
 
   return {
     from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
@@ -1354,6 +1667,223 @@ function buildCustomerSubmissionAckEmail(
       'X-Entity-Ref-ID': summary.transactionId.slice(0, 16),
     },
   };
+}
+
+/**
+ * Build owner confirmation email after accepting/denying booking
+ * Sends the same information shown on the success page
+ */
+function buildOwnerConfirmationEmail(
+  decision: 'accepted' | 'denied',
+  transactionId: string,
+  env: Env,
+  bookingDetails: {
+    startLocation: string;
+    endLocation: string;
+    pickupTime: string;
+    pickupDate?: string;
+    price: string;
+    passengers: string;
+    estimatedDuration: string;
+    bookingRef: string;
+    customerName?: string;
+    customerPhone?: string;
+    notes?: string;
+    mapUrl?: string;
+  },
+  customer: { name: string; email: string }
+): EmailPayload {
+  const isAccepted = decision === 'accepted';
+  const action = isAccepted ? 'accept' : 'deny';
+  const subject = `ACShuttle-${action}-Status-${bookingDetails.price}-${customer.name}-${bookingDetails.bookingRef}`;
+
+  // Generate calendar ICS file for accepted bookings
+  let calendarAttachment = null;
+  if (isAccepted && bookingDetails.pickupDate) {
+    try {
+      const icsContent = generateCalendarEvent(transactionId, {
+        ...bookingDetails,
+        customerName: customer.name,
+        pickupDate: bookingDetails.pickupDate
+      });
+      // Resend requires base64 encoding for attachments
+      const base64Content = btoa(icsContent);
+      calendarAttachment = {
+        filename: `ac-shuttles-trip-${bookingDetails.bookingRef}.ics`,
+        content: base64Content,
+      };
+      console.log('Calendar attachment created for owner email:', bookingDetails.bookingRef);
+    } catch (error) {
+      console.error('Error generating calendar event for owner email:', error);
+    }
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 24px; }
+        .status-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; background: ${isAccepted ? '#d4edda' : '#f8d7da'}; color: ${isAccepted ? '#155724' : '#721c24'}; margin-bottom: 16px; }
+        .title { font-size: 24px; font-weight: 600; margin-bottom: 8px; color: #212529; }
+        .subtitle { font-size: 14px; color: #6c757d; margin-bottom: 24px; }
+        .route { background: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center; border: 2px solid ${isAccepted ? '#28a745' : '#dc3545'}; }
+        .route-location { font-weight: 600; color: #212529; }
+        .route-arrow { margin: 0 12px; color: #6c757d; }
+        .details-section { background: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+        .details-title { font-size: 14px; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+        .detail-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .detail-item:last-child { border-bottom: none; }
+        .detail-label { font-weight: 500; color: #495057; }
+        .detail-value { color: #212529; text-align: right; }
+        .footer { text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e9ecef; color: #6c757d; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="status-badge">${isAccepted ? 'ACCEPTED' : 'DECLINED'}</div>
+            <h1 class="title">Trip ${isAccepted ? 'Accepted' : 'Declined'}</h1>
+            <p class="subtitle">Confirmation of your decision</p>
+        </div>
+
+        <div class="route">
+            <span class="route-location">${escapeHtml(bookingDetails.startLocation)}</span>
+            <span class="route-arrow">→</span>
+            <span class="route-location">${escapeHtml(bookingDetails.endLocation)}</span>
+        </div>
+
+        <div class="details-section">
+            <div class="details-title">Customer Contact</div>
+            <div class="detail-item">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value">${escapeHtml(customer.name)}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value"><a href="mailto:${escapeHtml(customer.email)}" style="color: #007bff; text-decoration: none;">${escapeHtml(customer.email)}</a></span>
+            </div>
+            ${bookingDetails.customerPhone ? `
+            <div class="detail-item">
+                <span class="detail-label">Phone:</span>
+                <span class="detail-value"><a href="tel:${escapeHtml(bookingDetails.customerPhone)}" style="color: #007bff; text-decoration: none;">${escapeHtml(bookingDetails.customerPhone)}</a></span>
+            </div>
+            ` : ''}
+        </div>
+
+        <div class="details-section">
+            <div class="details-title">Trip Details</div>
+            <div class="detail-item">
+                <span class="detail-label">Pickup Date:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupDate || 'Not specified')}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Pickup Time:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.pickupTime)}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Passengers:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.passengers)}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Price:</span>
+                <span class="detail-value" style="font-weight: 600; color: ${isAccepted ? '#28a745' : '#dc3545'};">${escapeHtml(bookingDetails.price)}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Duration:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.estimatedDuration)}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Reference:</span>
+                <span class="detail-value" style="font-family: monospace;">${escapeHtml(bookingDetails.bookingRef)}</span>
+            </div>
+            ${bookingDetails.notes ? `
+            <div class="detail-item">
+                <span class="detail-label">Notes:</span>
+                <span class="detail-value">${escapeHtml(bookingDetails.notes)}</span>
+            </div>
+            ` : ''}
+        </div>
+
+        ${calendarAttachment ? `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center;">
+            <div style="font-size: 40px; margin-bottom: 12px;">📅</div>
+            <div style="color: white; font-size: 18px; font-weight: 600; margin-bottom: 8px;">Calendar Attached</div>
+            <div style="color: rgba(255, 255, 255, 0.9); font-size: 14px; margin-bottom: 8px;">
+                A calendar file is attached to this email with a reminder 2 hours before pickup.
+            </div>
+            <div style="color: rgba(255, 255, 255, 0.85); font-size: 13px;">
+                Open the attachment to add this trip to your calendar app.
+            </div>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+            <p>${isAccepted
+              ? 'The customer has been notified and sent your contact information.'
+              : 'The customer has been notified of the cancellation.'
+            }</p>
+            <p style="margin-top: 12px;">
+                <strong>AC Shuttles</strong><br>
+                ${env.DRIVER_CONTACT_EMAIL || env.CUSTOMER_FROM_EMAIL}
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+  const text = `AC SHUTTLES - TRIP ${isAccepted ? 'ACCEPTED' : 'DECLINED'}
+
+You have ${isAccepted ? 'accepted' : 'declined'} the following trip:
+
+ROUTE:
+From: ${bookingDetails.startLocation}
+To: ${bookingDetails.endLocation}
+
+CUSTOMER CONTACT:
+Name: ${customer.name}
+Email: ${customer.email}
+${bookingDetails.customerPhone ? `Phone: ${bookingDetails.customerPhone}` : ''}
+
+TRIP DETAILS:
+Pickup Date: ${bookingDetails.pickupDate || 'Not specified'}
+Pickup Time: ${bookingDetails.pickupTime}
+Passengers: ${bookingDetails.passengers}
+Price: ${bookingDetails.price}
+Duration: ${bookingDetails.estimatedDuration}
+Reference: ${bookingDetails.bookingRef}
+${bookingDetails.notes ? `Notes: ${bookingDetails.notes}` : ''}
+
+${calendarAttachment ? '📅 CALENDAR FILE ATTACHED - Open the .ics file to add this trip to your calendar with a 2-hour reminder.\n\n' : ''}${isAccepted
+  ? 'The customer has been notified and sent your contact information.'
+  : 'The customer has been notified of the cancellation.'
+}
+
+---
+AC Shuttles
+${env.DRIVER_CONTACT_EMAIL || env.CUSTOMER_FROM_EMAIL}`;
+
+  const emailPayload: EmailPayload = {
+    from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+    to: env.OWNER_EMAIL,
+    subject,
+    html,
+    text,
+    tags: [`booking-${action}ed`, "owner-notification", "decision-confirmation", "AC Shuttles"],
+  };
+
+  // Add calendar attachment for accepted bookings
+  if (calendarAttachment) {
+    emailPayload.attachments = [calendarAttachment];
+    console.log('Owner confirmation email WITH calendar attachment - To:', env.OWNER_EMAIL, 'Ref:', bookingDetails.bookingRef);
+  } else {
+    console.log('Owner confirmation email WITHOUT calendar - To:', env.OWNER_EMAIL, 'Ref:', bookingDetails.bookingRef);
+  }
+
+  return emailPayload;
 }
 
 function summarizeBody(body: string): string {
@@ -1500,7 +2030,7 @@ async function handleResendWebhook(request: Request, env: Env): Promise<Response
             startLocation: bookingDetails.startLocation,
             endLocation: bookingDetails.endLocation,
             pickupTime: bookingDetails.pickupTime,
-            pickupDate: bookingDetails.pickupDate || formatTicketDate(new Date()),
+            pickupDate: bookingDetails.pickupDate || bookingDetails.pickupTime || 'Date TBD',
             notificationType: notificationType as 'accepted' | 'denied',
             deliveredAt: new Date().toISOString(),
             bookingRef: bookingDetails.bookingRef,
@@ -1512,6 +2042,7 @@ async function handleResendWebhook(request: Request, env: Env): Promise<Response
           // Send delivery confirmation to owner
           if (env.OWNER_EMAIL && env.RESEND_API_KEY) {
             await sendEmail(env.RESEND_API_KEY, {
+              from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
               to: env.OWNER_EMAIL,
               subject: `Customer Notification Delivered - ${bookingDetails.bookingRef}`,
               html: ownerEmail.html,

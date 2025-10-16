@@ -15,6 +15,7 @@ export { generateCustomerSubmissionAckEmail, type CustomerSubmissionAckData } fr
 export {
   parseAddress,
   generateLocationCode,
+  formatPickupDateTime,
   formatTicketDate,
   formatTicketTime,
   calculateArrivalTime,

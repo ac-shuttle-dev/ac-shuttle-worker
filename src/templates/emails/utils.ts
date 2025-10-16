@@ -89,6 +89,56 @@ export function generateLocationCode(address: string): string {
 }
 
 /**
+ * Format datetime string for display without timezone conversion
+ * Handles various input formats and outputs human-readable format
+ *
+ * @param dateTimeString - Can be ISO string like "2025-10-16T13:52" or already formatted
+ * @returns Object with formatted date and time strings
+ */
+export function formatPickupDateTime(dateTimeString: string): { date: string; time: string } {
+  // If already formatted (contains AM/PM), return as-is
+  if (/\d{1,2}:\d{2}\s*(AM|PM)/i.test(dateTimeString)) {
+    return {
+      date: dateTimeString,
+      time: dateTimeString
+    };
+  }
+
+  // Try to parse as ISO datetime (e.g., "2025-10-16T13:52")
+  try {
+    const date = new Date(dateTimeString);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      // Return original if can't parse
+      return { date: dateTimeString, time: dateTimeString };
+    }
+
+    // Format date as MM/DD/YYYY
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    const formattedDate = `${month}/${day}/${year}`;
+
+    // Format time as H:MM AM/PM (without leading zero for hours)
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; // Convert to 12-hour format
+    const formattedTime = `${hours}:${minutes} ${ampm}`;
+
+    return {
+      date: formattedDate,
+      time: formattedTime
+    };
+  } catch (error) {
+    // Return original if any error
+    return { date: dateTimeString, time: dateTimeString };
+  }
+}
+
+/**
+ * @deprecated Use formatPickupDateTime instead
  * Format date for display in tickets
  * Converts UTC time to the specified timezone before formatting
  *
@@ -107,6 +157,7 @@ export function formatTicketDate(dateString: string, timeZone: string = 'America
 }
 
 /**
+ * @deprecated Use formatPickupDateTime instead
  * Format time for display in tickets
  * Converts UTC time to the specified timezone before formatting
  *
