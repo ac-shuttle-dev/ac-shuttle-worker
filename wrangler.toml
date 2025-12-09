@@ -1,38 +1,40 @@
-name = "ac-shuttle-dev-worker"
+# AC Shuttles Booking Worker
+# Server-side booking system with Google Sheets integration
+
+name = "ac-shuttle-worker"
 main = "src/index.ts"
 compatibility_date = "2024-09-20"
+account_id = "e8e376a42e61c995f4cffafb4de50331"
 
 [vars]
-WORKER_URL = "https://ac-shuttle-dev-worker.acshuttles157.workers.dev"
+# Worker URL (will be: https://ac-shuttle-worker.<subdomain>.workers.dev)
+WORKER_URL = "https://ac-shuttle-worker.acshuttles.workers.dev"
+
+# Email configuration
 CUSTOMER_FROM_EMAIL = "contact@acshuttles.com"
 OWNER_EMAIL = "nadimkabir28@gmail.com"
+
+# Driver contact info (shown to customers after booking accepted)
 DRIVER_CONTACT_NAME = "Driver Name"
 DRIVER_CONTACT_EMAIL = "contact@acshuttles.com"
 DRIVER_CONTACT_PHONE = "770-370-9714"
+
+# Feature flags
 RESEND_DRY_RUN = "false"
 VERBOSE_LOGGING = "true"
-RATE_LIMIT_WINDOW_SECONDS = "60"
-RATE_LIMIT_MAX_REQUESTS = "10"
-TOKEN_TTL_MINUTES = "60"
-DECISION_MIN_AGE_MS = "1000"
+
+# Google Sheets configuration
 GOOGLE_SHEET_ID_PRIMARY = "1XafG-zClHmokMTm4-7K8YXhxM3XlLJAnfdx9DzGFqYI"
 GOOGLE_SHEET_ID_BACKUP = "1Jx6cWj7vY0Yln1zuQ9yMruHd2RJpq1N1HWeporUcZPE"
 GOOGLE_SHEET_ID_AUDIT = "1fm15EjkOvLuNuDIFrBt3lsDQgfTHRB8VUE24sh3EOW4"
 GOOGLE_SHEET_RANGE_PRIMARY = "Sheet1!A:Z"
 GOOGLE_SHEET_RANGE_BACKUP = "Sheet1!A:Z"
 GOOGLE_SHEET_RANGE_AUDIT = "Sheet1!A:Z"
-QUOTE_ALLOWED_ORIGINS = "https://acshuttles.com"
-QUOTE_RATE_LIMIT_WINDOW_SECONDS = "60"
-QUOTE_RATE_LIMIT_MAX_REQUESTS = "10"
-QUOTE_TIME_ZONE = "America/New_York"
-QUOTE_DEFAULT_CURRENCY = "USD"
-TRIP_BASE_FARE = "0"
-TRIP_PER_KM_RATE = "0"
-TRIP_PER_MIN_RATE = "0"
-TRIP_SURGE_MULTIPLIER = "1"
-TRIP_MINIMUM_FARE = "0"
-TRIP_PRICING_FORMULA = ""
-QUOTE_DEBUG_LOGGING = "false"
+
+# Google Sheets reliability configuration
+SHEETS_MAX_RETRIES = "3"
+SHEETS_RETRY_DELAY_MS = "1000"
+SHEETS_VERIFY_WRITES = "true"
 
 [observability]
 enabled = true
@@ -40,7 +42,29 @@ enabled = true
 [observability.logs]
 enabled = true
 
-[[kv_namespaces]]
-binding = "SECURITY_STATE"
-id = "97fe06170d3a474f8b9061e14ec8cef2"
-preview_id = "18bd0db12d29446bb8f3b8bc98736f4b"
+# Native Cloudflare rate limiting (replaces KV-based rate limiting)
+# This is much more efficient - counters are in-memory on the same machine
+[[unsafe.bindings]]
+name = "BOOKING_RATE_LIMIT"
+type = "ratelimit"
+namespace_id = "1"
+simple = { limit = 10, period = 60 }
+
+# =============================================================================
+# SECRETS (set via `wrangler secret put <NAME>`)
+# =============================================================================
+# API_KEY              - Server-to-server authentication key
+# RESEND_API_KEY       - Resend email service API key
+# GOOGLE_SERVICE_ACCOUNT - Google service account JSON credentials
+# =============================================================================
+
+# =============================================================================
+# REMOVED VARIABLES (no longer needed):
+# =============================================================================
+# KV namespace - replaced by native rate limiting
+# RATE_LIMIT_* - using native rate limiting
+# TOKEN_TTL_MINUTES - tokens stored in sheets now
+# DECISION_MIN_AGE_MS - unnecessary complexity
+# QUOTE_* - trip pricing removed
+# TRIP_* - trip pricing removed
+# =============================================================================

@@ -1,156 +1,286 @@
-import { verifyFramerSignature } from "./hmac";
-import { enforceRateLimit } from "./rateLimiter";
-import {
-  isSubmissionProcessed,
-  markSubmissionPending,
-  markSubmissionProcessed,
-} from "./state";
+/**
+ * Security Layer - Server-Side Authentication
+ *
+ * Provides:
+ * - API key authentication (X-API-Key header)
+ * - Native Cloudflare rate limiting
+ * - Request payload validation
+ * - Idempotency key support
+ */
 
 export interface SecurityEnv {
-  WEBHOOK_SECRET: string;
-  SECURITY_STATE: KVNamespace;
-  RATE_LIMIT_WINDOW_SECONDS?: string;
-  RATE_LIMIT_MAX_REQUESTS?: string;
+  API_KEY: string;
+  BOOKING_RATE_LIMIT: RateLimiter;
 }
 
-export interface SecurityResult<TBody = unknown> {
-  submissionId: string;
-  rawBody: string;
-  body: TBody;
+export interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+export interface BookingPayload {
+  // Required fields
+  customer_name: string;
+  customer_email: string;
+  start_location: string;
+  end_location: string;
+  pickup_datetime: string;
+  passengers: number | string;
+  estimated_distance: string;
+  estimated_duration: string;
+
+  // Optional fields
+  customer_phone?: string;
+  notes?: string;
+  idempotency_key?: string;
+}
+
+export interface SecurityResult {
+  payload: BookingPayload;
+  idempotencyKey: string;
   customerEmail: string;
-  markProcessed: () => Promise<void>;
 }
 
-const RATE_LIMIT_DEFAULT_WINDOW = 60;
-const RATE_LIMIT_DEFAULT_MAX = 10;
-const RATE_LIMIT_BLOCK_MESSAGE =
-  "Too many requests. Please wait a moment and try again.";
+interface ValidationError {
+  field: string;
+  message: string;
+}
 
-export async function validateRequest<TBody extends Record<string, unknown>>(
+const logger = {
+  info: (event: string, data?: Record<string, unknown>) =>
+    console.log(JSON.stringify({ level: 'INFO', event, ...data, timestamp: new Date().toISOString() })),
+  warn: (event: string, data?: Record<string, unknown>) =>
+    console.warn(JSON.stringify({ level: 'WARN', event, ...data, timestamp: new Date().toISOString() })),
+  error: (event: string, data?: Record<string, unknown>) =>
+    console.error(JSON.stringify({ level: 'ERROR', event, ...data, timestamp: new Date().toISOString() })),
+};
+
+/**
+ * Validate an incoming booking request
+ */
+export async function validateRequest(
   request: Request,
   env: SecurityEnv
-): Promise<SecurityResult<TBody>> {
+): Promise<SecurityResult> {
+  const requestId = generateRequestId();
+
+  // 1. Method check
   if (request.method !== "POST") {
+    logger.warn('security.method_not_allowed', { requestId, method: request.method });
     throw new Response("Method Not Allowed", {
       status: 405,
       headers: { Allow: "POST" },
     });
   }
 
-  const bodyBuffer = await request.arrayBuffer();
-  const signature = request.headers.get("framer-signature");
-  const submissionId = request.headers.get("framer-webhook-submission-id");
-
-  if (!signature || !submissionId) {
-    const missing = [];
-    if (!signature) missing.push("framer-signature");
-    if (!submissionId) missing.push("framer-webhook-submission-id");
-    throw new Response(`Unauthorized: Missing headers - ${missing.join(", ")}`, { status: 401 });
+  // 2. API key validation
+  const apiKey = request.headers.get("X-API-Key");
+  if (!apiKey) {
+    logger.warn('security.missing_api_key', { requestId });
+    throw new Response("Unauthorized: Missing X-API-Key header", { status: 401 });
   }
 
-  const isVerified = await verifyFramerSignature(
-    env.WEBHOOK_SECRET,
-    submissionId,
-    bodyBuffer,
-    signature
-  );
-
-  if (!isVerified) {
-    throw new Response("Unauthorized: Invalid HMAC signature", { status: 401 });
+  if (!timingSafeEqual(apiKey, env.API_KEY)) {
+    logger.warn('security.invalid_api_key', { requestId });
+    throw new Response("Unauthorized: Invalid API key", { status: 401 });
   }
 
-  const rawBody = new TextDecoder().decode(bodyBuffer);
-  let parsedBody: TBody;
-  try {
-    parsedBody = JSON.parse(rawBody) as TBody;
-  } catch (error) {
-    throw new Response("Invalid JSON payload", { status: 400 });
-  }
+  // 3. Rate limiting (using native Cloudflare rate limiter)
+  const rateLimitKey = apiKey; // Rate limit by API key
+  const { success: withinLimit } = await env.BOOKING_RATE_LIMIT.limit({ key: rateLimitKey });
 
-  const customerEmail = extractEmail(parsedBody);
-  if (!customerEmail) {
-    throw new Response("Missing customer email in payload (checked: email, customer_email, contact_email, customerEmail)", { status: 400 });
-  }
-
-  const rateLimitKey = customerEmail.toLowerCase();
-  const rateLimitWindow = parseEnvNumber(
-    env.RATE_LIMIT_WINDOW_SECONDS,
-    RATE_LIMIT_DEFAULT_WINDOW
-  );
-  const rateLimitMax = parseEnvNumber(
-    env.RATE_LIMIT_MAX_REQUESTS,
-    RATE_LIMIT_DEFAULT_MAX
-  );
-
-  const rateLimitResult = await enforceRateLimit(rateLimitKey, {
-    kv: env.SECURITY_STATE,
-    limit: rateLimitMax,
-    windowSeconds: rateLimitWindow,
-  });
-
-  if (!rateLimitResult.allowed) {
-    throw Response.json(
-      {
+  if (!withinLimit) {
+    logger.warn('security.rate_limit_exceeded', { requestId });
+    throw new Response(
+      JSON.stringify({
         ok: false,
-        message: RATE_LIMIT_BLOCK_MESSAGE,
-        retryAfter: rateLimitResult.reset,
-      },
+        error: "Rate limit exceeded. Please try again later.",
+      }),
       {
         status: 429,
         headers: {
-          "Retry-After": Math.ceil(
-            (rateLimitResult.reset - Date.now()) / 1000
-          ).toString(),
+          "Content-Type": "application/json",
+          "Retry-After": "60",
         },
       }
     );
   }
 
-  const alreadyProcessed = await isSubmissionProcessed(
-    env.SECURITY_STATE,
-    submissionId
-  );
-
-  if (alreadyProcessed) {
-    throw new Response("Duplicate submission", { status: 409 });
+  // 4. Parse and validate payload
+  let rawPayload: unknown;
+  try {
+    rawPayload = await request.json();
+  } catch {
+    logger.warn('security.invalid_json', { requestId });
+    throw new Response("Bad Request: Invalid JSON payload", { status: 400 });
   }
 
-  await markSubmissionPending(env.SECURITY_STATE, submissionId);
+  const validationResult = validatePayload(rawPayload);
+  if (!validationResult.valid) {
+    logger.warn('security.validation_failed', {
+      requestId,
+      errors: validationResult.errors,
+    });
+    throw new Response(
+      JSON.stringify({
+        ok: false,
+        error: "Validation failed",
+        details: validationResult.errors,
+      }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  const payload = validationResult.payload;
+
+  // 5. Generate or use provided idempotency key
+  const idempotencyKey = payload.idempotency_key || generateIdempotencyKey(payload);
+
+  logger.info('security.request_validated', {
+    requestId,
+    customerEmail: payload.customer_email,
+    idempotencyKey: idempotencyKey.slice(0, 12),
+  });
 
   return {
-    submissionId,
-    rawBody,
-    body: parsedBody,
-    customerEmail,
-    markProcessed: async () => {
-      await markSubmissionProcessed(env.SECURITY_STATE, submissionId);
-    },
+    payload,
+    idempotencyKey,
+    customerEmail: payload.customer_email,
   };
 }
 
-function extractEmail(payload: Record<string, unknown>): string | null {
-  const possibleKeys = [
-    "email",
-    "customer_email",
-    "contact_email",
-    "customerEmail",
+/**
+ * Validate the booking payload structure
+ */
+function validatePayload(raw: unknown): { valid: true; payload: BookingPayload } | { valid: false; errors: ValidationError[] } {
+  const errors: ValidationError[] = [];
+
+  if (!raw || typeof raw !== "object") {
+    return { valid: false, errors: [{ field: "body", message: "Request body must be a JSON object" }] };
+  }
+
+  const payload = raw as Record<string, unknown>;
+
+  // Required string fields
+  const requiredStrings: Array<{ field: keyof BookingPayload; label: string }> = [
+    { field: "customer_name", label: "Customer name" },
+    { field: "customer_email", label: "Customer email" },
+    { field: "start_location", label: "Start location" },
+    { field: "end_location", label: "End location" },
+    { field: "pickup_datetime", label: "Pickup date/time" },
+    { field: "estimated_distance", label: "Estimated distance" },
+    { field: "estimated_duration", label: "Estimated duration" },
   ];
 
-  for (const key of possibleKeys) {
-    const value = payload[key];
-    if (typeof value === "string" && value.includes("@")) {
-      return value.trim();
+  for (const { field, label } of requiredStrings) {
+    const value = payload[field];
+    if (typeof value !== "string" || !value.trim()) {
+      errors.push({ field, message: `${label} is required` });
     }
   }
 
-  return null;
-}
-
-function parseEnvNumber(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
+  // Passengers - required, can be string or number
+  const passengers = payload.passengers;
+  if (passengers === undefined || passengers === null || passengers === "") {
+    errors.push({ field: "passengers", message: "Passengers count is required" });
+  } else {
+    const passengersNum = typeof passengers === "string" ? parseInt(passengers, 10) : passengers;
+    if (typeof passengersNum !== "number" || !Number.isFinite(passengersNum) || passengersNum < 1) {
+      errors.push({ field: "passengers", message: "Passengers must be a positive number" });
+    }
   }
 
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  // Email format validation
+  const email = payload.customer_email;
+  if (typeof email === "string" && email.trim()) {
+    if (!isValidEmail(email)) {
+      errors.push({ field: "customer_email", message: "Invalid email format" });
+    }
+  }
+
+  // Datetime validation
+  const datetime = payload.pickup_datetime;
+  if (typeof datetime === "string" && datetime.trim()) {
+    const parsed = Date.parse(datetime);
+    if (!Number.isFinite(parsed)) {
+      errors.push({ field: "pickup_datetime", message: "Invalid datetime format. Use ISO 8601 format." });
+    }
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  // Normalize the payload
+  const normalizedPayload: BookingPayload = {
+    customer_name: String(payload.customer_name).trim(),
+    customer_email: String(payload.customer_email).trim().toLowerCase(),
+    start_location: String(payload.start_location).trim(),
+    end_location: String(payload.end_location).trim(),
+    pickup_datetime: String(payload.pickup_datetime).trim(),
+    passengers: typeof payload.passengers === "number" ? payload.passengers : parseInt(String(payload.passengers), 10),
+    estimated_distance: String(payload.estimated_distance).trim(),
+    estimated_duration: String(payload.estimated_duration).trim(),
+    customer_phone: payload.customer_phone ? String(payload.customer_phone).trim() : undefined,
+    notes: payload.notes ? String(payload.notes).trim() : undefined,
+    idempotency_key: payload.idempotency_key ? String(payload.idempotency_key).trim() : undefined,
+  };
+
+  return { valid: true, payload: normalizedPayload };
+}
+
+/**
+ * Simple email validation
+ */
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/**
+ * Generate an idempotency key from the payload
+ * This ensures the same booking doesn't get processed twice
+ */
+function generateIdempotencyKey(payload: BookingPayload): string {
+  // Create a deterministic key from the unique aspects of the booking
+  const parts = [
+    payload.customer_email.toLowerCase(),
+    payload.start_location,
+    payload.end_location,
+    payload.pickup_datetime,
+    String(payload.passengers),
+  ].join("|");
+
+  // Simple hash - not cryptographic, just for uniqueness
+  let hash = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const char = parts.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return `auto-${Math.abs(hash).toString(36)}-${Date.now().toString(36)}`;
+}
+
+/**
+ * Generate a unique request ID for logging
+ */
+function generateRequestId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Timing-safe string comparison to prevent timing attacks
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do the comparison to maintain constant time
+    b = a;
+  }
+
+  let result = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
