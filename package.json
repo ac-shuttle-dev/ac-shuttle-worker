@@ -1,14 +1,16 @@
 {
-  "name": "resend-webhook-worker",
-  "version": "0.1.0",
+  "name": "ac-shuttle-worker",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
-    "dev:edge": "wrangler dev",
+    "dev:remote": "wrangler dev",
     "deploy": "wrangler deploy",
     "test": "vitest",
-    "webhook:test": "node scripts/send-local.js"
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "logs": "wrangler tail"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.0",
