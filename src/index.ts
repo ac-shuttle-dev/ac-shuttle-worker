@@ -368,6 +368,7 @@ async function sendCustomerAcknowledgment(summary: SubmissionSummary, env: Env):
     endLocation: summary.endLocation,
     pickupDate: date,
     pickupTime: time,
+    passengers: String(summary.passengers),
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
     contactEmail: env.CUSTOMER_FROM_EMAIL,
     contactPhone: env.DRIVER_CONTACT_PHONE || "",
