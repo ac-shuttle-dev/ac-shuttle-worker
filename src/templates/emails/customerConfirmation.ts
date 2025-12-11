@@ -1,25 +1,37 @@
 /**
- * Customer Confirmation Email Template - Confirmed Ticket Style
- * 
- * This template generates the ticket-style confirmation email that customers
- * receive when their booking is accepted. Features:
- * - Confirmed ticket design with green success styling
- * - Driver contact information prominently displayed
- * - Clear pickup instructions and timing
- * - Professional ticket appearance customers can save/show
+ * Customer Confirmation Email Template
+ *
+ * Sent when a booking is confirmed/accepted by the owner.
+ *
+ * Visual Theme: Green/Teal (Ride Confirmed)
+ * - Clear visual indicator at top showing "RIDE CONFIRMED"
+ * - Ticket-style design with boarding pass aesthetic
+ * - Location codes like airport tickets
+ * - Dark mode support via CSS media queries
+ * - Anti-spam compliant structure
  */
 
+import {
+  BRAND_COLORS,
+  getEmailHead,
+  getEmailResetStyles,
+  getEmailFooter,
+  getPreheader,
+  getEmailTypeIndicator,
+  getEmailLogoHeader,
+  generateLocationCode,
+  escapeHtml
+} from './utils';
 
 export interface CustomerConfirmationData {
   // Trip details
-  startLocation: string;  // Full physical address (e.g., "1000 Boardwalk, Atlantic City, NJ 08401")
-  endLocation: string;    // Full physical address (e.g., "101 Atlantic City International Airport, Egg Harbor Township, NJ 08234")
+  startLocation: string;
+  endLocation: string;
   pickupTime: string;
   pickupDate: string;
-  price: string;
   passengers: string;
   estimatedDuration: string;
-  mapUrl?: string;  // Google Maps URL for the route
+  mapUrl?: string;
 
   // Customer details
   customerName: string;
@@ -36,670 +48,337 @@ export interface CustomerConfirmationData {
 }
 
 export function generateCustomerConfirmationEmail(data: CustomerConfirmationData): { html: string; text: string } {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Confirmed - AC Shuttles</title>
-    <style>
-        /* Reset styles */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f0f8f0;
-            padding: 20px;
-            line-height: 1.4;
-        }
-        
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #f0f8f0;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 20px;
-        }
-        
-        .header h1 {
-            color: #16a34a;
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-        
-        .header p {
-            color: #166534;
-            font-size: 16px;
-        }
-        
-        /* Ticket Card Styles */
-        .ticket-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-            overflow: hidden;
-            border: 3px solid #bbf7d0;
-        }
-        
-        .ticket-header {
-            background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            position: relative;
-        }
-        
-        .ticket-header::before,
-        .ticket-header::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent 0px,
-                transparent 4px,
-                white 4px,
-                white 8px
-            );
-        }
-        
-        .ticket-header::before { left: 0; }
-        .ticket-header::after { right: 0; }
-        
-        .ticket-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        
-        .ticket-subtitle {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        .ticket-body {
-            padding: 24px;
-        }
-        
-        /* Route Display */
-        .route-section {
-            margin-bottom: 24px;
-            background: #f0fdf4;
-            border-radius: 12px;
-            border: 2px solid #bbf7d0;
-            overflow: hidden;
-        }
-        
-        .route-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            mso-table-lspace: 0pt;
-            mso-table-rspace: 0pt;
-        }
-        
-        .route-cell {
-            width: 45%;
-            padding: 20px 12px;
-            text-align: center;
-            vertical-align: middle;
-            border: none;
-        }
-        
-        .route-arrow-cell {
-            width: 10%;
-            padding: 10px;
-            text-align: center;
-            vertical-align: middle;
-            border: none;
-        }
-        
-        .location-name {
-            font-size: 18px;
-            color: #333;
-            font-weight: 600;
-            line-height: 1.3;
-            word-wrap: break-word;
-            hyphens: auto;
-        }
-        
-        .route-arrow {
-            font-size: 24px;
-            color: #22c55e;
-            display: block;
-        }
-        
-        /* Pickup Time */
-        .pickup-time-section {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 20px;
-            background: #f0fdf4;
-            border-radius: 8px;
-            border: 2px solid #bbf7d0;
-        }
-        
-        .time-label {
-            font-size: 16px;
-            color: #16a34a;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            font-weight: 700;
-        }
-        
-        .time-value {
-            font-size: 32px;
-            font-weight: 900;
-            color: #16a34a;
-            margin-bottom: 8px;
-            line-height: 1.1;
-        }
-        
-        .date-value {
-            font-size: 20px;
-            color: #333;
-            font-weight: 600;
-        }
-        
-        /* Details Grid */
-        .details-grid {
-            margin-bottom: 24px;
-            border: 2px solid #bbf7d0;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .details-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            mso-table-lspace: 0pt;
-            mso-table-rspace: 0pt;
-        }
-        
-        .detail-cell {
-            width: 50%;
-            text-align: center;
-            padding: 20px 12px;
-            vertical-align: middle;
-            border: none;
-            border-right: 1px solid #bbf7d0;
-        }
-        
-        .detail-cell:last-child {
-            border-right: none;
-        }
-        
-        .detail-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            font-weight: 600;
-            display: block;
-        }
-        
-        .detail-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #16a34a;
-            line-height: 1.2;
-        }
-        
-        /* Information Sections */
-        .info-section {
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #f0fdf4;
-            border-radius: 8px;
-            border-left: 4px solid #22c55e;
-        }
-        
-        .info-title {
-            font-size: 14px;
-            color: #16a34a;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            font-weight: 700;
-        }
-        
-        .info-content {
-            color: #333;
-            font-size: 16px;
-            line-height: 1.5;
-            word-wrap: break-word;
-            word-break: break-word;
-        }
-        
-        .contact-item {
-            margin-bottom: 4px;
-        }
-        
-        .contact-link {
-            color: #16a34a;
-            text-decoration: none;
-        }
-        
-        .contact-link:hover {
-            text-decoration: underline;
-        }
-        
-        .instruction-list {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .instruction-item {
-            margin-bottom: 6px;
-            padding-left: 16px;
-            position: relative;
-        }
-        
-        .instruction-item::before {
-            content: '•';
-            color: #22c55e;
-            font-weight: 700;
-            position: absolute;
-            left: 0;
-        }
-        
-        /* Perforated Line */
-        .perforation {
-            border-top: 2px dashed #bbf7d0;
-            margin: 20px 0;
-            position: relative;
-        }
-        
-        .perforation::before,
-        .perforation::after {
-            content: '';
-            position: absolute;
-            top: -8px;
-            width: 16px;
-            height: 16px;
-            background: #f0f8f0;
-            border-radius: 50%;
-            border: 2px solid #bbf7d0;
-        }
-        
-        .perforation::before { left: -8px; }
-        .perforation::after { right: -8px; }
-        
-        /* Ticket Stub */
-        .ticket-stub {
-            text-align: center;
-            padding: 16px;
-            background: #f0fdf4;
-        }
-        
-        .booking-ref {
-            font-size: 14px;
-            font-weight: 700;
-            color: #16a34a;
-            margin-bottom: 4px;
-        }
-        
-        .validity {
-            font-size: 11px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        /* Success Message */
-        .success-message {
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-            border-radius: 12px;
-            margin: 20px 0;
-            border: 2px solid #22c55e;
-        }
-        
-        .success-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #16a34a;
-            margin-bottom: 8px;
-        }
-        
-        .success-text {
-            color: #166534;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        
-        /* Map Button */
-        .map-button {
-            display: block;
-            width: 100%;
-            padding: 16px 24px;
-            margin: 16px 0;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 700;
-            font-size: 16px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
+  // Generate location codes for ticket-style display
+  const fromCode = generateLocationCode(data.startLocation);
+  const toCode = generateLocationCode(data.endLocation);
 
-        .map-button:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        }
+  const safeData = {
+    customerName: escapeHtml(data.customerName),
+    startLocation: escapeHtml(data.startLocation),
+    endLocation: escapeHtml(data.endLocation),
+    pickupTime: escapeHtml(data.pickupTime),
+    pickupDate: escapeHtml(data.pickupDate),
+    passengers: escapeHtml(data.passengers),
+    estimatedDuration: escapeHtml(data.estimatedDuration),
+    driverName: escapeHtml(data.driverName),
+    driverPhone: escapeHtml(data.driverPhone),
+    driverEmail: escapeHtml(data.driverEmail),
+    notes: data.notes ? escapeHtml(data.notes) : '',
+    bookingRef: escapeHtml(data.bookingRef),
+    mapUrl: data.mapUrl || '',
+    fromCode,
+    toCode,
+  };
 
-        .button-subtitle {
-            font-size: 12px;
-            opacity: 0.9;
-            margin-top: 4px;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            margin-top: 24px;
-            padding: 20px;
-            border-top: 2px solid #bbf7d0;
-            color: #666;
-            font-size: 14px;
-        }
-        
-        /* Mobile Responsive */
-        @media only screen and (max-width: 600px) {
-            body {
-                padding: 10px !important;
-            }
-
-            .ticket-body {
-                padding: 16px !important;
-            }
-
-            .route-table {
-                table-layout: auto !important;
-            }
-
-            .route-cell {
-                display: block !important;
-                width: 100% !important;
-                padding: 12px !important;
-            }
-
-            .route-arrow-cell {
-                display: block !important;
-                width: 100% !important;
-                padding: 8px !important;
-            }
-
-            .location-name {
-                font-size: 16px !important;
-                line-height: 1.3 !important;
-            }
-
-            .route-arrow {
-                transform: rotate(90deg);
-                font-size: 20px !important;
-            }
-
-            .pickup-time-section {
-                padding: 16px !important;
-            }
-
-            .time-value {
-                font-size: 26px !important;
-            }
-
-            .date-value {
-                font-size: 17px !important;
-            }
-
-            .details-table {
-                table-layout: auto !important;
-            }
-
-            .detail-cell {
-                display: block !important;
-                width: 100% !important;
-                padding: 14px !important;
-                border-right: none !important;
-                border-bottom: 1px solid #bbf7d0 !important;
-            }
-
-            .detail-cell:last-child {
-                border-bottom: none !important;
-            }
-
-            .detail-value {
-                font-size: 20px !important;
-            }
-
-            .info-content {
-                font-size: 15px !important;
-            }
-
-            .header h1 {
-                font-size: 20px !important;
-            }
-
-            .success-title {
-                font-size: 16px !important;
-            }
-
-            .success-text {
-                font-size: 13px !important;
-            }
-        }
-
-        /* Extra Small Devices */
-        @media only screen and (max-width: 480px) {
-            body {
-                padding: 8px !important;
-            }
-
-            .ticket-body {
-                padding: 12px !important;
-            }
-
-            .location-name {
-                font-size: 14px !important;
-            }
-
-            .time-value {
-                font-size: 24px !important;
-            }
-
-            .date-value {
-                font-size: 16px !important;
-            }
-
-            .detail-value {
-                font-size: 18px !important;
-            }
-
-            .info-content {
-                font-size: 14px !important;
-            }
-
-            .info-title {
-                font-size: 12px !important;
-            }
-        }
-    </style>
+  const html = `${getEmailHead('Ride Confirmed - AC Shuttles')}
+${getEmailResetStyles()}
 </head>
-<body>
-    <div class="email-container">
-        <div class="header">
-            <h1 style="color: #333;">AC SHUTTLES</h1>
-        </div>
-        
-        <div class="success-message">
-            <div class="success-title">Your ride is confirmed!</div>
-            <div class="success-text">Save this ticket and show it to your driver</div>
-        </div>
-        
-        <div class="ticket-card">
-            <div class="ticket-header">
-                <div class="ticket-title">AC SHUTTLES TICKET</div>
-                <div class="ticket-subtitle">CONFIRMED</div>
-            </div>
-            
-            <div class="ticket-body">
-                <!-- Route Display -->
-                <div class="route-section">
-                    <table class="route-table" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                            <td class="route-cell" width="45%" align="center" valign="middle">
-                                <div class="location-name">${data.startLocation}</div>
-                            </td>
-                            <td class="route-arrow-cell" width="10%" align="center" valign="middle">
-                                <div class="route-arrow">→</div>
-                            </td>
-                            <td class="route-cell" width="45%" align="center" valign="middle">
-                                <div class="location-name">${data.endLocation}</div>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <!-- Pickup Time -->
-                <div class="pickup-time-section">
-                    <div class="time-label">Pickup Time</div>
-                    <div class="time-value">${data.pickupTime}</div>
-                    <div class="date-value">${data.pickupDate}</div>
-                </div>
-                
-                <!-- Details Grid -->
-                <div class="details-grid">
-                    <table class="details-table" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                            <td class="detail-cell" width="50%" align="center" valign="middle">
-                                <div class="detail-label">Passengers</div>
-                                <div class="detail-value">${data.passengers}</div>
-                            </td>
-                            <td class="detail-cell" width="50%" align="center" valign="middle">
-                                <div class="detail-label">Fare</div>
-                                <div class="detail-value">${data.price}</div>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <!-- Driver Details -->
-                <div class="info-section">
-                    <div class="info-title">YOUR DRIVER</div>
-                    <div class="info-content">
-                        <div class="contact-item"><strong>Name:</strong> ${data.driverName}</div>
-                        <div class="contact-item"><strong>Phone:</strong> <a href="tel:${data.driverPhone}" class="contact-link">${data.driverPhone}</a></div>
-                        <div class="contact-item"><strong>Email:</strong> <a href="mailto:${data.driverEmail}" class="contact-link">${data.driverEmail}</a></div>
-                    </div>
-                </div>
-                
-                <!-- Pickup Instructions -->
-                <div class="info-section">
-                    <div class="info-title">PICKUP INSTRUCTIONS</div>
-                    <div class="info-content">
-                        <ul class="instruction-list">
-                            <li class="instruction-item">Be ready 5-10 minutes before scheduled time</li>
-                            <li class="instruction-item">Driver will call you when approaching</li>
-                            <li class="instruction-item">Wait at the building entrance</li>
-                            <li class="instruction-item">Have this ticket ready to show</li>
-                        </ul>
-                        <div style="margin-top: 12px;">
-                            <strong>Pickup Location:</strong><br>
-                            ${data.startLocation}
-                        </div>
-                    </div>
-                </div>
-                
-                ${data.notes ? `
-                <div class="info-section">
-                    <div class="info-title">TRIP NOTES</div>
-                    <div class="info-content">${data.notes}</div>
-                </div>
-                ` : ''}
+<body style="margin: 0; padding: 0; background-color: ${BRAND_COLORS.gray100};">
+    ${getPreheader(`Your ride is confirmed for ${safeData.pickupDate} at ${safeData.pickupTime}. Booking: ${safeData.bookingRef}`)}
 
-                ${data.mapUrl ? `
-                <a href="${data.mapUrl}" class="map-button" target="_blank" rel="noopener noreferrer">
-                    VIEW ROUTE ON GOOGLE MAPS
-                    <div class="button-subtitle">See directions and traffic updates</div>
-                </a>
-                ` : ''}
+    <!-- Type Indicator -->
+    ${getEmailTypeIndicator('confirmed')}
 
-                <!-- Perforated Line -->
-                <div class="perforation"></div>
-                
-                <!-- Ticket Stub -->
-                <div class="ticket-stub">
-                    <div class="booking-ref">BOOKING REF: ${data.bookingRef}</div>
-                    <div class="validity">Ride Confirmed</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Footer -->
-        <div class="footer">
-            📞 Questions? Call ${data.driverPhone} or reply to this email
-        </div>
-    </div>
+    <!-- Email Body -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-body-bg" style="background-color: ${BRAND_COLORS.gray100};">
+        <tr>
+            <td style="padding: 0 20px 40px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;" class="email-container">
+
+                    ${getEmailLogoHeader()}
+
+                    <!-- Main Card - Ticket Style -->
+                    <tr>
+                        <td>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card" style="background-color: ${BRAND_COLORS.white}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+
+                                <!-- Header Content -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 32px 32px 24px;">
+                                        <h1 class="text-dark" style="margin: 0 0 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 700; color: ${BRAND_COLORS.gray900}; line-height: 1.3;">
+                                            Your ride is confirmed
+                                        </h1>
+                                        <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; color: ${BRAND_COLORS.gray600}; line-height: 1.5;">
+                                            Hi ${safeData.customerName}, we look forward to seeing you. Save this confirmation for your trip.
+                                        </p>
+                                    </td>
+                                </tr>
+
+                                <!-- Ticket Section -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: ${BRAND_COLORS.gray900}; border-radius: 12px; overflow: hidden;">
+
+                                            <!-- Ticket Header -->
+                                            <tr>
+                                                <td style="padding: 20px 24px; border-bottom: 2px dashed ${BRAND_COLORS.gray700};">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td width="50%">
+                                                                <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 1px;">
+                                                                    Passenger
+                                                                </p>
+                                                                <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 600; color: ${BRAND_COLORS.white};">
+                                                                    ${safeData.customerName}
+                                                                </p>
+                                                            </td>
+                                                            <td width="50%" style="text-align: right;">
+                                                                <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 1px;">
+                                                                    Reference
+                                                                </p>
+                                                                <p style="margin: 0; font-family: 'SF Mono', 'Monaco', monospace; font-size: 14px; font-weight: 700; color: ${BRAND_COLORS.primary}; letter-spacing: 1px;">
+                                                                    ${safeData.bookingRef}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+
+                                            <!-- Route Display -->
+                                            <tr>
+                                                <td style="padding: 24px;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td width="40%" valign="top">
+                                                                <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 1px;">
+                                                                    From
+                                                                </p>
+                                                                <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 32px; font-weight: 800; color: ${BRAND_COLORS.white}; letter-spacing: 2px;">
+                                                                    ${safeData.fromCode}
+                                                                </p>
+                                                                <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${BRAND_COLORS.gray400}; line-height: 1.4;">
+                                                                    ${safeData.startLocation}
+                                                                </p>
+                                                            </td>
+                                                            <td width="20%" valign="middle" style="text-align: center;">
+                                                                <div style="color: ${BRAND_COLORS.primary}; font-size: 24px;">&#10132;</div>
+                                                            </td>
+                                                            <td width="40%" valign="top" style="text-align: right;">
+                                                                <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 1px;">
+                                                                    To
+                                                                </p>
+                                                                <p style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 32px; font-weight: 800; color: ${BRAND_COLORS.white}; letter-spacing: 2px;">
+                                                                    ${safeData.toCode}
+                                                                </p>
+                                                                <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${BRAND_COLORS.gray400}; line-height: 1.4;">
+                                                                    ${safeData.endLocation}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+
+                                            <!-- Ticket Details -->
+                                            <tr>
+                                                <td style="padding: 0 24px 24px;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td class="stack-column" width="33%" style="padding-right: 8px;" valign="top">
+                                                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: ${BRAND_COLORS.gray800}; border-radius: 8px;">
+                                                                    <tr>
+                                                                        <td style="padding: 12px; text-align: center;">
+                                                                            <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 0.5px;">Date</p>
+                                                                            <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 700; color: ${BRAND_COLORS.white};">${safeData.pickupDate}</p>
+                                                                        </td>
+                                                                    </tr>
+                                                                </table>
+                                                            </td>
+                                                            <td class="stack-column" width="33%" style="padding-left: 8px; padding-right: 8px;" valign="top">
+                                                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: ${BRAND_COLORS.gray800}; border-radius: 8px;">
+                                                                    <tr>
+                                                                        <td style="padding: 12px; text-align: center;">
+                                                                            <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 0.5px;">Time</p>
+                                                                            <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 700; color: ${BRAND_COLORS.white};">${safeData.pickupTime}</p>
+                                                                        </td>
+                                                                    </tr>
+                                                                </table>
+                                                            </td>
+                                                            <td class="stack-column" width="33%" style="padding-left: 8px;" valign="top">
+                                                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: ${BRAND_COLORS.gray800}; border-radius: 8px;">
+                                                                    <tr>
+                                                                        <td style="padding: 12px; text-align: center;">
+                                                                            <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; font-weight: 600; color: ${BRAND_COLORS.gray400}; text-transform: uppercase; letter-spacing: 0.5px;">Passengers</p>
+                                                                            <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 700; color: ${BRAND_COLORS.white};">${safeData.passengers}</p>
+                                                                        </td>
+                                                                    </tr>
+                                                                </table>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Driver Section -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card-secondary border-light" style="background-color: ${BRAND_COLORS.gray50}; border-radius: 10px; border: 1px solid ${BRAND_COLORS.gray200}; border-left: 4px solid ${BRAND_COLORS.primary};">
+                                            <tr>
+                                                <td style="padding: 18px 20px;">
+                                                    <p class="text-muted" style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${BRAND_COLORS.gray500};">
+                                                        Your Driver
+                                                    </p>
+                                                    <p class="text-dark" style="margin: 0 0 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.gray900};">
+                                                        ${safeData.driverName}
+                                                    </p>
+                                                    <p style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px;">
+                                                        <a href="tel:${safeData.driverPhone}" style="color: ${BRAND_COLORS.primary}; text-decoration: none; font-weight: 500;">${safeData.driverPhone}</a>
+                                                    </p>
+                                                    <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px;">
+                                                        <a href="mailto:${safeData.driverEmail}" style="color: ${BRAND_COLORS.primary}; text-decoration: none;">${safeData.driverEmail}</a>
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Pickup Tips -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <p class="text-dark" style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 600; color: ${BRAND_COLORS.gray900};">
+                                            Pickup Tips
+                                        </p>
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td class="text-muted" style="padding: 5px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                    <span style="color: ${BRAND_COLORS.primary}; margin-right: 8px;">&#10003;</span>Be ready 5-10 minutes before pickup
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-muted" style="padding: 5px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                    <span style="color: ${BRAND_COLORS.primary}; margin-right: 8px;">&#10003;</span>Driver will call when approaching
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-muted" style="padding: 5px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                    <span style="color: ${BRAND_COLORS.primary}; margin-right: 8px;">&#10003;</span>Wait at the building entrance
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                ${safeData.notes ? `
+                                <!-- Notes -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: ${BRAND_COLORS.warningLight}; border-radius: 10px; border: 1px solid ${BRAND_COLORS.warning};">
+                                            <tr>
+                                                <td style="padding: 16px 20px;">
+                                                    <p style="margin: 0 0 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; color: ${BRAND_COLORS.warningDark}; text-transform: uppercase; letter-spacing: 0.5px;">
+                                                        Trip Notes
+                                                    </p>
+                                                    <p class="text-dark" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray700}; line-height: 1.5;">
+                                                        ${safeData.notes}
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                ` : ''}
+
+                                ${safeData.mapUrl ? `
+                                <!-- Map Button -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="text-align: center;">
+                                                    <a href="${safeData.mapUrl}" target="_blank" rel="noopener noreferrer" class="button-link button-mobile" style="display: inline-block; padding: 14px 28px; background-color: ${BRAND_COLORS.primary}; color: ${BRAND_COLORS.white}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 10px;">
+                                                        View Route on Maps
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                ` : ''}
+
+                                <!-- Footer Message -->
+                                <tr>
+                                    <td class="padding-mobile email-card-secondary border-light" style="padding: 20px 32px; background-color: ${BRAND_COLORS.successLight}; border-top: 1px solid ${BRAND_COLORS.gray200};">
+                                        <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.successDark}; text-align: center; line-height: 1.5;">
+                                            We look forward to providing you with a comfortable ride!
+                                        </p>
+                                    </td>
+                                </tr>
+
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Help Text -->
+                    <tr>
+                        <td style="padding: 24px 20px 0; text-align: center;">
+                            <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray500};">
+                                Questions? Call <a href="tel:${safeData.driverPhone}" style="color: ${BRAND_COLORS.primary}; text-decoration: none; font-weight: 500;">${safeData.driverPhone}</a> or reply to this email
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    ${getEmailFooter(safeData.driverPhone, safeData.driverEmail)}
+
 </body>
 </html>`;
 
-  const text = `AC SHUTTLES - BOOKING CONFIRMED
+  const text = `AC SHUTTLES - RIDE CONFIRMED
 
-YOUR RIDE IS CONFIRMED!
-Save this ticket and show it to your driver.
+Your ride is confirmed!
 
-TICKET DETAILS:
-===============
+Hi ${data.customerName}, we look forward to seeing you. Save this confirmation for your trip.
+
+BOOKING REFERENCE: ${data.bookingRef}
+
+ROUTE
+=====
+${fromCode} --> ${toCode}
 From: ${data.startLocation}
 To: ${data.endLocation}
-Pickup Time: ${data.pickupTime} on ${data.pickupDate}
-Passengers: ${data.passengers}
-Fare: ${data.price}
-Duration: ${data.estimatedDuration}
 
-YOUR DRIVER:
+TRIP DETAILS
 ============
-Name: ${data.driverName}
+Date: ${data.pickupDate}
+Time: ${data.pickupTime}
+Passengers: ${data.passengers}
+Est. Duration: ${data.estimatedDuration}
+
+YOUR DRIVER
+===========
+${data.driverName}
 Phone: ${data.driverPhone}
 Email: ${data.driverEmail}
 
-PICKUP INSTRUCTIONS:
-====================
-• Be ready 5-10 minutes before scheduled time
-• Driver will call you when approaching
-• Wait at the building entrance
-• Have this ticket ready to show
+PICKUP TIPS
+===========
+- Be ready 5-10 minutes before pickup
+- Driver will call when approaching
+- Wait at the building entrance
 
-PICKUP LOCATION:
-================
-${data.startLocation}
-
-${data.notes ? `TRIP NOTES:
-============
+${data.notes ? `TRIP NOTES
+==========
 ${data.notes}
 
-` : ''}${data.mapUrl ? `VIEW ROUTE:
-===========
-${data.mapUrl}
+` : ''}${data.mapUrl ? `VIEW ROUTE: ${data.mapUrl}
 
-` : ''}BOOKING REF: ${data.bookingRef}
+` : ''}We look forward to providing you with a comfortable ride!
 
-Questions? Call ${data.driverPhone} or reply to this email.`;
+Questions? Call ${data.driverPhone} or reply to this email.
+
+---
+AC Shuttles - Private Shuttle Service
+Serving NJ, Philadelphia & NYC Area`;
 
   return { html, text };
 }

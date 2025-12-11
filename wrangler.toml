@@ -8,7 +8,7 @@ account_id = "e8e376a42e61c995f4cffafb4de50331"
 
 [vars]
 # Worker URL (will be: https://ac-shuttle-worker.<subdomain>.workers.dev)
-WORKER_URL = "https://ac-shuttle-worker.acshuttles.workers.dev"
+WORKER_URL = "https://ac-shuttle-worker.acshuttles157.workers.dev"
 
 # Email configuration
 CUSTOMER_FROM_EMAIL = "contact@acshuttles.com"

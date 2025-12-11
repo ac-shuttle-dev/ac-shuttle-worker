@@ -21,13 +21,17 @@ import {
 } from "./layers/coordination";
 import {
   generateOwnerNotificationEmail,
+  generateOwnerDeliveryNotificationEmail,
   generateCustomerConfirmationEmail,
   generateCustomerDenialEmail,
   generateCustomerSubmissionAckEmail,
+  generateCustomerReminderEmail,
   formatPickupDateTime,
   type OwnerNotificationData,
+  type OwnerDeliveryNotificationData,
   type CustomerConfirmationData,
   type CustomerDenialData,
+  type CustomerReminderData,
   type CustomerSubmissionAckData,
 } from "./templates/emails";
 
@@ -41,6 +45,10 @@ interface Env extends SecurityEnv, CoordinationEnv {
   WORKER_URL?: string;
   RESEND_DRY_RUN?: string;
   VERBOSE_LOGGING?: string;
+  // Driver contact information for customer emails
+  DRIVER_CONTACT_NAME?: string;
+  DRIVER_CONTACT_PHONE?: string;
+  DRIVER_CONTACT_EMAIL?: string;
 }
 
 // Logger utility
@@ -137,12 +145,16 @@ async function handleBookingRequest(request: Request, env: Env): Promise<Respons
   });
 
   // 3. Send emails (if not dry run)
+  // Flow: Owner notification first, customer acknowledgment only after owner email succeeds
   const dryRun = env.RESEND_DRY_RUN?.toLowerCase() === "true";
 
   if (!dryRun) {
-    // Send owner notification
+    let ownerEmailSent = false;
+
+    // Send owner notification first
     try {
       await sendOwnerNotification(summary, env);
+      ownerEmailSent = true;
       logger.info("booking.owner_email.sent", {
         requestId,
         transactionId: summary.transactionId.slice(0, 12),
@@ -155,17 +167,25 @@ async function handleBookingRequest(request: Request, env: Env): Promise<Respons
       // Don't fail the request if email fails - booking is already saved
     }
 
-    // Send customer acknowledgment
-    try {
-      await sendCustomerAcknowledgment(summary, env);
-      logger.info("booking.customer_ack.sent", {
+    // Only send customer acknowledgment AFTER owner email is successfully delivered
+    // This ensures the customer only gets notified once we know the owner has been notified
+    if (ownerEmailSent) {
+      try {
+        await sendCustomerAcknowledgment(summary, env);
+        logger.info("booking.customer_ack.sent", {
+          requestId,
+          transactionId: summary.transactionId.slice(0, 12),
+        });
+      } catch (error) {
+        logger.warn("booking.customer_ack.failed", {
+          requestId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } else {
+      logger.warn("booking.customer_ack.skipped", {
         requestId,
-        transactionId: summary.transactionId.slice(0, 12),
-      });
-    } catch (error) {
-      logger.warn("booking.customer_ack.failed", {
-        requestId,
-        error: error instanceof Error ? error.message : String(error),
+        reason: "Owner notification failed - customer acknowledgment not sent",
       });
     }
   }
@@ -227,7 +247,34 @@ async function handleOwnerDecision(
     if (!dryRun) {
       try {
         if (decision === "Accepted") {
+          // Send confirmation email
           await sendCustomerConfirmation(booking, env);
+          logger.info("decision.customer_confirmation.sent", {
+            transactionId: transactionId.slice(0, 12),
+          });
+
+          // Check if trip is within 24 hours - if so, send reminder immediately
+          const tripWithin24Hours = isTripWithin24Hours(booking.pickupDatetime);
+          if (tripWithin24Hours) {
+            try {
+              await sendCustomerReminder(booking, env);
+              logger.info("decision.customer_reminder.sent", {
+                transactionId: transactionId.slice(0, 12),
+                reason: "Trip within 24 hours of confirmation",
+              });
+            } catch (reminderError) {
+              // Don't fail if reminder fails - confirmation was sent
+              logger.warn("decision.customer_reminder.failed", {
+                transactionId: transactionId.slice(0, 12),
+                error: reminderError instanceof Error ? reminderError.message : String(reminderError),
+              });
+            }
+          } else {
+            logger.info("decision.customer_reminder.scheduled", {
+              transactionId: transactionId.slice(0, 12),
+              note: "Reminder will be sent within 24 hours of trip",
+            });
+          }
         } else {
           await sendCustomerDenial(booking, env);
         }
@@ -235,6 +282,21 @@ async function handleOwnerDecision(
           transactionId: transactionId.slice(0, 12),
           decision,
         });
+
+        // Send owner delivery confirmation
+        try {
+          await sendOwnerDeliveryNotification(booking, decision, env);
+          logger.info("decision.owner_delivery.sent", {
+            transactionId: transactionId.slice(0, 12),
+            decision,
+          });
+        } catch (deliveryError) {
+          // Don't fail if owner delivery notification fails - customer already notified
+          logger.warn("decision.owner_delivery.failed", {
+            transactionId: transactionId.slice(0, 12),
+            error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+          });
+        }
       } catch (error) {
         logger.error("decision.customer_email.failed", {
           transactionId: transactionId.slice(0, 12),
@@ -277,7 +339,6 @@ async function sendOwnerNotification(summary: SubmissionSummary, env: Env): Prom
     passengers: String(summary.passengers),
     estimatedDistance: summary.estimatedDistance,
     estimatedDuration: summary.estimatedDuration,
-    price: "Contact for quote",
     notes: summary.notes || undefined,
     bookingRef: summary.transactionId.slice(0, 10).toUpperCase(),
     acceptUrl: `${workerUrl}/accept/${summary.transactionId}`,
@@ -336,7 +397,6 @@ async function sendCustomerConfirmation(booking: SubmissionSummary, env: Env): P
     pickupTime: time,
     passengers: String(booking.passengers),
     estimatedDuration: booking.estimatedDuration,
-    price: "As quoted",
     driverName: env.DRIVER_CONTACT_NAME || "AC Shuttles Driver",
     driverPhone: env.DRIVER_CONTACT_PHONE || "",
     driverEmail: env.DRIVER_CONTACT_EMAIL || "",
@@ -371,7 +431,6 @@ async function sendCustomerDenial(booking: SubmissionSummary, env: Env): Promise
     contactPhone: env.DRIVER_CONTACT_PHONE || "",
     contactEmail: env.CUSTOMER_FROM_EMAIL,
     bookingRef: booking.transactionId.slice(0, 10).toUpperCase(),
-    mapUrl: booking.mapUrl,
   };
 
   const { html, text } = generateCustomerDenialEmail(emailData);
@@ -383,6 +442,68 @@ async function sendCustomerDenial(booking: SubmissionSummary, env: Env): Promise
     html,
     text,
     tags: ["customer-denial", "booking-denied"],
+  });
+}
+
+async function sendCustomerReminder(booking: SubmissionSummary, env: Env): Promise<void> {
+  const { date, time } = formatPickupDateTime(booking.pickupDatetime);
+
+  const emailData: CustomerReminderData = {
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    startLocation: booking.startLocation,
+    endLocation: booking.endLocation,
+    pickupDate: date,
+    pickupTime: time,
+    passengers: String(booking.passengers),
+    driverName: env.DRIVER_CONTACT_NAME || "AC Shuttles Driver",
+    driverPhone: env.DRIVER_CONTACT_PHONE || "",
+    driverEmail: env.DRIVER_CONTACT_EMAIL || env.CUSTOMER_FROM_EMAIL,
+    bookingRef: booking.transactionId.slice(0, 10).toUpperCase(),
+  };
+
+  const { html, text } = generateCustomerReminderEmail(emailData);
+
+  await sendEmail(env.RESEND_API_KEY, {
+    from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+    to: booking.customerEmail,
+    subject: `🔔 Reminder: Your AC Shuttles Ride Tomorrow - ${date}`,
+    html,
+    text,
+    tags: ["customer-reminder", "trip-reminder"],
+  });
+}
+
+async function sendOwnerDeliveryNotification(
+  booking: SubmissionSummary,
+  decision: "Accepted" | "Denied",
+  env: Env
+): Promise<void> {
+  const { date, time } = formatPickupDateTime(booking.pickupDatetime);
+
+  const emailData: OwnerDeliveryNotificationData = {
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    startLocation: booking.startLocation,
+    endLocation: booking.endLocation,
+    pickupDate: date,
+    pickupTime: time,
+    notificationType: decision === "Accepted" ? "accepted" : "denied",
+    deliveredAt: new Date().toISOString(),
+    bookingRef: booking.transactionId.slice(0, 10).toUpperCase(),
+    transactionId: booking.transactionId,
+  };
+
+  const { html, text } = generateOwnerDeliveryNotificationEmail(emailData);
+
+  const statusEmoji = decision === "Accepted" ? "✅" : "❌";
+  await sendEmail(env.RESEND_API_KEY, {
+    from: `AC Shuttles <${env.CUSTOMER_FROM_EMAIL}>`,
+    to: env.OWNER_EMAIL,
+    subject: `${statusEmoji} Booking ${decision}: ${booking.customerName} notification delivered`,
+    html,
+    text,
+    tags: ["owner-delivery", `booking-${decision.toLowerCase()}`],
   });
 }
 
@@ -400,13 +521,27 @@ interface EmailPayload {
 }
 
 async function sendEmail(apiKey: string, payload: EmailPayload): Promise<{ id: string }> {
+  // Resend API expects tags as [{name, value}] objects, not strings
+  const resendPayload: Record<string, unknown> = {
+    from: payload.from,
+    to: payload.to,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
+  };
+
+  // Convert string tags to Resend's expected format
+  if (payload.tags && payload.tags.length > 0) {
+    resendPayload.tags = payload.tags.map(tag => ({ name: tag, value: "true" }));
+  }
+
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(resendPayload),
   });
 
   if (!response.ok) {
@@ -421,6 +556,25 @@ async function sendEmail(apiKey: string, payload: EmailPayload): Promise<{ id: s
 // HTML Page Renderers
 // =============================================================================
 
+// Brand colors matching the email templates
+const PAGE_COLORS = {
+  primary: '#14b8a6',
+  success: '#14b8a6',
+  danger: '#ef4444',
+  warning: '#f59e0b',
+  info: '#64748b',
+  gray100: '#f4f4f5',
+  gray200: '#e4e4e7',
+  gray500: '#71717a',
+  gray600: '#52525b',
+  gray700: '#3f3f46',
+  gray800: '#27272a',
+  gray900: '#18181b',
+  white: '#ffffff',
+  darkBg: '#0f172a',
+  darkCard: '#1e293b',
+};
+
 function renderErrorPage(title: string, message: string): Response {
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -429,18 +583,46 @@ function renderErrorPage(title: string, message: string): Response {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} - AC Shuttles</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; background: #f8f9fa; }
-    .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
-    .icon { font-size: 48px; margin-bottom: 20px; }
-    h1 { color: #dc3545; margin-bottom: 16px; }
-    p { color: #6c757d; line-height: 1.6; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: ${PAGE_COLORS.gray100};
+      min-height: 100vh;
+    }
+    .logo { text-align: center; margin-bottom: 24px; }
+    .logo-box { display: inline-block; width: 32px; height: 32px; background: ${PAGE_COLORS.primary}; border-radius: 6px; margin-right: 10px; vertical-align: middle; }
+    .logo-text { font-size: 18px; font-weight: 700; color: ${PAGE_COLORS.gray900}; letter-spacing: 2px; vertical-align: middle; }
+    .container { max-width: 480px; margin: 0 auto; background: ${PAGE_COLORS.white}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .indicator { background: ${PAGE_COLORS.danger}; padding: 14px; text-align: center; }
+    .indicator-text { color: ${PAGE_COLORS.white}; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+    .content { padding: 32px; text-align: center; }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { color: ${PAGE_COLORS.gray900}; margin: 0 0 12px 0; font-size: 22px; font-weight: 700; }
+    p { color: ${PAGE_COLORS.gray600}; line-height: 1.6; margin: 0; font-size: 15px; }
+    @media (prefers-color-scheme: dark) {
+      body { background: ${PAGE_COLORS.darkBg}; }
+      .container { background: ${PAGE_COLORS.darkCard}; }
+      .logo-text, h1 { color: #f1f5f9; }
+      p { color: #94a3b8; }
+    }
   </style>
 </head>
 <body>
+  <div class="logo">
+    <span class="logo-box"></span>
+    <span class="logo-text">AC SHUTTLES</span>
+  </div>
   <div class="container">
-    <div class="icon">⚠️</div>
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(message)}</p>
+    <div class="indicator">
+      <span class="indicator-text">✕ Error</span>
+    </div>
+    <div class="content">
+      <div class="icon">⚠️</div>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(message)}</p>
+    </div>
   </div>
 </body>
 </html>`;
@@ -452,6 +634,10 @@ function renderErrorPage(title: string, message: string): Response {
 }
 
 function renderAlreadyProcessedPage(status: string, booking: SubmissionSummary | null): Response {
+  const isAccepted = status === "Accepted";
+  const statusColor = isAccepted ? PAGE_COLORS.success : PAGE_COLORS.danger;
+  const statusBg = isAccepted ? '#ccfbf1' : '#fee2e2';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -459,21 +645,58 @@ function renderAlreadyProcessedPage(status: string, booking: SubmissionSummary |
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Already Processed - AC Shuttles</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; background: #f8f9fa; }
-    .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
-    .icon { font-size: 48px; margin-bottom: 20px; }
-    h1 { color: #495057; margin-bottom: 16px; }
-    p { color: #6c757d; line-height: 1.6; }
-    .status { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: 600; background: ${status === "Accepted" ? "#d4edda" : "#f8d7da"}; color: ${status === "Accepted" ? "#155724" : "#721c24"}; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: ${PAGE_COLORS.gray100};
+      min-height: 100vh;
+    }
+    .logo { text-align: center; margin-bottom: 24px; }
+    .logo-box { display: inline-block; width: 32px; height: 32px; background: ${PAGE_COLORS.primary}; border-radius: 6px; margin-right: 10px; vertical-align: middle; }
+    .logo-text { font-size: 18px; font-weight: 700; color: ${PAGE_COLORS.gray900}; letter-spacing: 2px; vertical-align: middle; }
+    .container { max-width: 480px; margin: 0 auto; background: ${PAGE_COLORS.white}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .indicator { background: ${PAGE_COLORS.info}; padding: 14px; text-align: center; }
+    .indicator-text { color: ${PAGE_COLORS.white}; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+    .content { padding: 32px; text-align: center; }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { color: ${PAGE_COLORS.gray900}; margin: 0 0 12px 0; font-size: 22px; font-weight: 700; }
+    p { color: ${PAGE_COLORS.gray600}; line-height: 1.6; margin: 0 0 16px 0; font-size: 15px; }
+    .status { display: inline-block; padding: 10px 20px; border-radius: 24px; font-weight: 700; font-size: 14px; background: ${statusBg}; color: ${statusColor}; border: 2px solid ${statusColor}; }
+    .booking-info { margin-top: 20px; padding: 16px; background: ${PAGE_COLORS.gray100}; border-radius: 8px; text-align: left; }
+    .booking-info strong { color: ${PAGE_COLORS.gray900}; }
+    .booking-info span { color: ${PAGE_COLORS.gray600}; font-size: 14px; }
+    @media (prefers-color-scheme: dark) {
+      body { background: ${PAGE_COLORS.darkBg}; }
+      .container { background: ${PAGE_COLORS.darkCard}; }
+      .logo-text, h1, .booking-info strong { color: #f1f5f9; }
+      p, .booking-info span { color: #94a3b8; }
+      .booking-info { background: ${PAGE_COLORS.darkBg}; }
+    }
   </style>
 </head>
 <body>
+  <div class="logo">
+    <span class="logo-box"></span>
+    <span class="logo-text">AC SHUTTLES</span>
+  </div>
   <div class="container">
-    <div class="icon">ℹ️</div>
-    <h1>Booking Already Processed</h1>
-    <p>This booking has already been processed.</p>
-    <div class="status">${escapeHtml(status)}</div>
-    ${booking ? `<p style="margin-top: 20px;"><strong>${escapeHtml(booking.customerName)}</strong><br>${escapeHtml(booking.startLocation)} → ${escapeHtml(booking.endLocation)}</p>` : ""}
+    <div class="indicator">
+      <span class="indicator-text">ℹ️ Already Processed</span>
+    </div>
+    <div class="content">
+      <div class="icon">📋</div>
+      <h1>Booking Already Processed</h1>
+      <p>This booking has already been processed.</p>
+      <div class="status">${isAccepted ? '✓' : '✕'} ${escapeHtml(status)}</div>
+      ${booking ? `
+      <div class="booking-info">
+        <strong>${escapeHtml(booking.customerName)}</strong><br>
+        <span>${escapeHtml(booking.startLocation)} → ${escapeHtml(booking.endLocation)}</span>
+      </div>
+      ` : ""}
+    </div>
   </div>
 </body>
 </html>`;
@@ -486,6 +709,9 @@ function renderAlreadyProcessedPage(status: string, booking: SubmissionSummary |
 
 function renderSuccessPage(decision: "Accepted" | "Denied", booking: SubmissionSummary): Response {
   const isAccepted = decision === "Accepted";
+  const indicatorColor = isAccepted ? PAGE_COLORS.success : PAGE_COLORS.danger;
+  const indicatorText = isAccepted ? '✓ RIDE CONFIRMED' : '✕ RIDE DECLINED';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -493,47 +719,80 @@ function renderSuccessPage(decision: "Accepted" | "Denied", booking: SubmissionS
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Booking ${decision} - AC Shuttles</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; background: #f8f9fa; }
-    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .icon { font-size: 48px; text-align: center; margin-bottom: 20px; }
-    h1 { color: ${isAccepted ? "#28a745" : "#dc3545"}; text-align: center; margin-bottom: 24px; }
-    .message { text-align: center; color: #6c757d; margin-bottom: 32px; }
-    .details { background: #f8f9fa; border-radius: 8px; padding: 20px; }
-    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: ${PAGE_COLORS.gray100};
+      min-height: 100vh;
+    }
+    .logo { text-align: center; margin-bottom: 24px; }
+    .logo-box { display: inline-block; width: 32px; height: 32px; background: ${PAGE_COLORS.primary}; border-radius: 6px; margin-right: 10px; vertical-align: middle; }
+    .logo-text { font-size: 18px; font-weight: 700; color: ${PAGE_COLORS.gray900}; letter-spacing: 2px; vertical-align: middle; }
+    .container { max-width: 520px; margin: 0 auto; background: ${PAGE_COLORS.white}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .indicator { background: ${indicatorColor}; padding: 14px; text-align: center; }
+    .indicator-text { color: ${PAGE_COLORS.white}; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+    .content { padding: 32px; }
+    .icon { font-size: 48px; text-align: center; margin-bottom: 16px; }
+    h1 { color: ${PAGE_COLORS.gray900}; text-align: center; margin: 0 0 12px 0; font-size: 24px; font-weight: 700; }
+    .message { text-align: center; color: ${PAGE_COLORS.gray600}; margin: 0 0 24px 0; font-size: 15px; line-height: 1.5; }
+    .details { background: ${PAGE_COLORS.gray100}; border-radius: 10px; padding: 20px; border: 1px solid ${PAGE_COLORS.gray200}; }
+    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid ${PAGE_COLORS.gray200}; }
     .detail-row:last-child { border-bottom: none; }
-    .label { color: #6c757d; }
-    .value { color: #212529; font-weight: 500; }
+    .label { color: ${PAGE_COLORS.gray500}; font-size: 14px; }
+    .value { color: ${PAGE_COLORS.gray900}; font-weight: 600; font-size: 14px; text-align: right; max-width: 60%; }
+    .ref-badge { margin-top: 20px; padding: 14px; background: ${PAGE_COLORS.gray900}; border-radius: 8px; text-align: center; }
+    .ref-label { color: ${PAGE_COLORS.gray500}; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .ref-value { color: ${PAGE_COLORS.primary}; font-family: 'SF Mono', Monaco, monospace; font-size: 16px; font-weight: 700; letter-spacing: 2px; }
+    @media (prefers-color-scheme: dark) {
+      body { background: ${PAGE_COLORS.darkBg}; }
+      .container { background: ${PAGE_COLORS.darkCard}; }
+      .logo-text, h1, .value { color: #f1f5f9; }
+      .message, .label { color: #94a3b8; }
+      .details { background: ${PAGE_COLORS.darkBg}; border-color: #334155; }
+      .detail-row { border-color: #334155; }
+    }
   </style>
 </head>
 <body>
+  <div class="logo">
+    <span class="logo-box"></span>
+    <span class="logo-text">AC SHUTTLES</span>
+  </div>
   <div class="container">
-    <div class="icon">${isAccepted ? "✅" : "❌"}</div>
-    <h1>Booking ${decision}</h1>
-    <p class="message">
-      ${isAccepted
-        ? "The customer has been notified with driver contact information."
-        : "The customer has been notified about the booking status."}
-    </p>
-    <div class="details">
-      <div class="detail-row">
-        <span class="label">Customer</span>
-        <span class="value">${escapeHtml(booking.customerName)}</span>
+    <div class="indicator">
+      <span class="indicator-text">${indicatorText}</span>
+    </div>
+    <div class="content">
+      <div class="icon">${isAccepted ? "✅" : "❌"}</div>
+      <h1>Booking ${decision}</h1>
+      <p class="message">
+        ${isAccepted
+          ? "The customer has been notified with driver contact information."
+          : "The customer has been notified about the booking status."}
+      </p>
+      <div class="details">
+        <div class="detail-row">
+          <span class="label">Customer</span>
+          <span class="value">${escapeHtml(booking.customerName)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Route</span>
+          <span class="value">${escapeHtml(booking.startLocation)} → ${escapeHtml(booking.endLocation)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Pickup</span>
+          <span class="value">${escapeHtml(booking.pickupDatetime)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Passengers</span>
+          <span class="value">${booking.passengers}</span>
+        </div>
       </div>
-      <div class="detail-row">
-        <span class="label">Route</span>
-        <span class="value">${escapeHtml(booking.startLocation)} → ${escapeHtml(booking.endLocation)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Pickup</span>
-        <span class="value">${escapeHtml(booking.pickupDatetime)}</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Passengers</span>
-        <span class="value">${booking.passengers}</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Reference</span>
-        <span class="value">${escapeHtml(booking.transactionId.slice(0, 10).toUpperCase())}</span>
+      <div class="ref-badge">
+        <div class="ref-label">Reference</div>
+        <div class="ref-value">${escapeHtml(booking.transactionId.slice(0, 10).toUpperCase())}</div>
       </div>
     </div>
   </div>
@@ -549,6 +808,24 @@ function renderSuccessPage(decision: "Accepted" | "Denied", booking: SubmissionS
 // =============================================================================
 // Utilities
 // =============================================================================
+
+/**
+ * Check if a trip is within 24 hours from now
+ * Used to determine if reminder should be sent immediately with confirmation
+ */
+function isTripWithin24Hours(pickupDatetime: string): boolean {
+  try {
+    const tripDate = new Date(pickupDatetime);
+    const now = new Date();
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    // Trip is within 24 hours if it's between now and 24 hours from now
+    return tripDate >= now && tripDate <= twentyFourHoursFromNow;
+  } catch {
+    // If we can't parse the date, be safe and return true (send reminder)
+    return true;
+  }
+}
 
 function generateRequestId(): string {
   return Math.random().toString(36).slice(2, 10);

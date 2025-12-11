@@ -9,8 +9,13 @@
     "deploy": "wrangler deploy",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "logs": "wrangler tail"
+    "logs": "wrangler tail",
+    "generate:previews": "tsx scripts/generate-email-previews.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.0",

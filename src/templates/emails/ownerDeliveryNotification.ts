@@ -1,22 +1,39 @@
 /**
  * Owner Delivery Notification Email Template
- * 
- * This template generates the email that owners receive when a customer
- * has successfully received their booking accept/denial notification.
- * Used for delivery confirmation tracking via Resend webhooks.
+ *
+ * Sent to the owner to confirm that the customer received their booking notification.
+ *
+ * Visual Theme: Slate (Delivery Confirmation)
+ * - Clear visual indicator at top showing "DELIVERY CONFIRMED"
+ * - Simple, clean informational design
+ * - Quick trip summary for reference
+ * - Color-coded badge for accepted/denied
+ * - Dark mode support via CSS media queries
+ * - Anti-spam compliant structure
  */
+
+import {
+  BRAND_COLORS,
+  getEmailHead,
+  getEmailResetStyles,
+  getPreheader,
+  getEmailTypeIndicator,
+  getEmailLogoHeader,
+  escapeHtml,
+  formatHumanReadableTimestamp
+} from './utils';
 
 export interface OwnerDeliveryNotificationData {
   // Customer details
   customerName: string;
   customerEmail: string;
-  
+
   // Trip details
   startLocation: string;
   endLocation: string;
   pickupTime: string;
   pickupDate: string;
-  
+
   // Notification details
   notificationType: 'accepted' | 'denied';
   deliveredAt: string;
@@ -25,327 +42,249 @@ export interface OwnerDeliveryNotificationData {
 }
 
 export function generateOwnerDeliveryNotificationEmail(data: OwnerDeliveryNotificationData): { html: string; text: string } {
-  const statusColor = data.notificationType === 'accepted' ? '#16a34a' : '#dc2626';
-  const statusText = data.notificationType === 'accepted' ? 'ACCEPTED' : 'DENIED';
-  const statusIcon = data.notificationType === 'accepted' ? 'ACCEPTED' : 'DENIED';
+  const isAccepted = data.notificationType === 'accepted';
+  const statusColor = isAccepted ? BRAND_COLORS.success : BRAND_COLORS.danger;
+  const statusColorLight = isAccepted ? BRAND_COLORS.successLight : BRAND_COLORS.dangerLight;
+  const statusText = isAccepted ? 'Accepted' : 'Declined';
+  const statusIcon = isAccepted ? '&#10003;' : '&#10005;';
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Notified - AC Shuttles</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f8fafc;
-            padding: 20px;
-            line-height: 1.4;
-        }
-        
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #f8fafc;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 20px;
-        }
-        
-        .header h1 {
-            color: #333;
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-        
-        .status-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-            overflow: hidden;
-            border: 3px solid #e2e8f0;
-        }
-        
-        .status-header {
-            background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
-        
-        .status-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        
-        .status-subtitle {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        .status-body {
-            padding: 24px;
-        }
-        
-        .delivery-notice {
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-            border-radius: 12px;
-            margin-bottom: 24px;
-            border: 2px solid #cbd5e1;
-        }
-        
-        .delivery-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #334155;
-            margin-bottom: 8px;
-        }
-        
-        .delivery-text {
-            color: #64748b;
-            font-size: 16px;
-            line-height: 1.4;
-        }
-        
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            padding: 12px 20px;
-            background: ${statusColor};
-            color: white;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 16px;
-            margin: 16px 0;
-        }
-        
-        .status-icon {
-            margin-right: 8px;
-            font-size: 18px;
-        }
-        
-        .customer-section {
-            margin-bottom: 24px;
-            padding: 16px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border-left: 4px solid #64748b;
-        }
-        
-        .section-title {
-            font-size: 14px;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            font-weight: 700;
-        }
-        
-        .section-content {
-            color: #333;
-            font-size: 16px;
-            line-height: 1.4;
-        }
-        
-        .trip-details {
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border-left: 4px solid #64748b;
-        }
-        
-        .route-info {
-            margin-bottom: 12px;
-        }
-        
-        .location {
-            font-weight: 600;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        
-        .pickup-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 12px;
-            padding: 12px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .pickup-time {
-            font-weight: 700;
-            color: #334155;
-            font-size: 16px;
-        }
-        
-        .delivery-details {
-            margin-bottom: 20px;
-            padding: 16px;
-            background: #f0f9ff;
-            border-radius: 8px;
-            border-left: 4px solid #0ea5e9;
-        }
-        
-        .detail-item {
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-        
-        .detail-label {
-            font-weight: 600;
-            color: #334155;
-        }
-        
-        .detail-value {
-            color: #64748b;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 24px;
-            padding: 20px;
-            border-top: 2px solid #e2e8f0;
-            color: #64748b;
-            font-size: 14px;
-        }
-        
-        @media only screen and (max-width: 600px) {
-            body {
-                padding: 10px;
-            }
-            
-            .status-body {
-                padding: 16px;
-            }
-            
-            .pickup-info {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .pickup-time {
-                margin-top: 8px;
-            }
-        }
-    </style>
+  // Format the delivery timestamp in human-readable format
+  const formattedDeliveredAt = formatHumanReadableTimestamp(data.deliveredAt);
+
+  const safeData = {
+    customerName: escapeHtml(data.customerName),
+    customerEmail: escapeHtml(data.customerEmail),
+    startLocation: escapeHtml(data.startLocation),
+    endLocation: escapeHtml(data.endLocation),
+    pickupTime: escapeHtml(data.pickupTime),
+    pickupDate: escapeHtml(data.pickupDate),
+    deliveredAt: escapeHtml(formattedDeliveredAt),
+    bookingRef: escapeHtml(data.bookingRef),
+    transactionId: escapeHtml(data.transactionId),
+  };
+
+  const html = `${getEmailHead('Delivery Confirmation - AC Shuttles')}
+${getEmailResetStyles()}
 </head>
-<body>
-    <div class="email-container">
-        <div class="header">
-            <h1>AC SHUTTLES</h1>
-        </div>
-        
-        <div class="status-card">
-            <div class="status-header">
-                <div class="status-title">DELIVERY CONFIRMATION</div>
-                <div class="status-subtitle">Customer Notification Delivered</div>
-            </div>
-            
-            <div class="status-body">
-                <div class="delivery-notice">
-                    <div class="delivery-title">Customer Has Been Notified</div>
-                    <div class="delivery-text">The customer has successfully received their booking ${data.notificationType} notification</div>
-                    <div class="status-indicator">
-                        <span class="status-icon">${statusIcon}</span>
-                        Booking ${statusText}
-                    </div>
-                </div>
-                
-                <div class="customer-section">
-                    <div class="section-title">CUSTOMER DETAILS</div>
-                    <div class="section-content">
-                        <div><strong>Name:</strong> ${data.customerName}</div>
-                        <div><strong>Email:</strong> ${data.customerEmail}</div>
-                    </div>
-                </div>
-                
-                <div class="trip-details">
-                    <div class="section-title">TRIP INFORMATION</div>
-                    <div class="route-info">
-                        <div class="location"><strong>From:</strong> ${data.startLocation}</div>
-                        <div class="location"><strong>To:</strong> ${data.endLocation}</div>
-                    </div>
-                    <div class="pickup-info">
-                        <div>
-                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Pickup Time</div>
-                            <div class="pickup-time">${data.pickupTime}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Date</div>
-                            <div class="pickup-time">${data.pickupDate}</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="delivery-details">
-                    <div class="section-title">DELIVERY INFORMATION</div>
-                    <div class="detail-item">
-                        <span class="detail-label">Delivered At:</span> 
-                        <span class="detail-value">${data.deliveredAt}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Booking Reference:</span> 
-                        <span class="detail-value">${data.bookingRef}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Transaction ID:</span> 
-                        <span class="detail-value">${data.transactionId}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="footer">
-            This is an automated delivery confirmation from AC Shuttles.<br>
-            The customer notification process is now complete.
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: ${BRAND_COLORS.gray100};">
+    ${getPreheader(`Customer ${safeData.customerName} has received their booking ${statusText.toLowerCase()} notification.`)}
+
+    <!-- Type Indicator -->
+    ${getEmailTypeIndicator('delivery_confirmation')}
+
+    <!-- Email Body -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-body-bg" style="background-color: ${BRAND_COLORS.gray100};">
+        <tr>
+            <td style="padding: 0 20px 40px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;" class="email-container">
+
+                    ${getEmailLogoHeader()}
+
+                    <!-- Main Card -->
+                    <tr>
+                        <td>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card" style="background-color: ${BRAND_COLORS.white}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+
+                                <!-- Header Content -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 32px 32px 24px;">
+                                        <h1 class="text-dark" style="margin: 0 0 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 700; color: ${BRAND_COLORS.gray900}; line-height: 1.3;">
+                                            Email Delivered
+                                        </h1>
+                                        <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; color: ${BRAND_COLORS.gray600}; line-height: 1.5;">
+                                            Customer notification was successfully sent.
+                                        </p>
+                                    </td>
+                                </tr>
+
+                                <!-- Status Badge -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="text-align: center;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="background-color: ${statusColorLight}; border-radius: 20px; border: 2px solid ${statusColor};">
+                                                        <tr>
+                                                            <td style="padding: 10px 20px;">
+                                                                <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; font-weight: 700; color: ${statusColor};">
+                                                                    <span style="margin-right: 6px;">${statusIcon}</span>
+                                                                    Booking ${statusText}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Main Message -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card-secondary border-light" style="background-color: ${BRAND_COLORS.infoLight}; border-radius: 10px; border: 1px solid ${BRAND_COLORS.info};">
+                                            <tr>
+                                                <td style="padding: 20px; text-align: center;">
+                                                    <p class="text-dark" style="margin: 0 0 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.gray800};">
+                                                        ${safeData.customerName} has received their notification
+                                                    </p>
+                                                    <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                        The booking ${statusText.toLowerCase()} email was delivered successfully
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Customer Info -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card-secondary border-light" style="background-color: ${BRAND_COLORS.gray50}; border-radius: 10px; border: 1px solid ${BRAND_COLORS.gray200};">
+                                            <tr>
+                                                <td style="padding: 18px 20px;">
+                                                    <p class="text-muted" style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${BRAND_COLORS.gray500};">
+                                                        Customer
+                                                    </p>
+                                                    <p class="text-dark" style="margin: 0 0 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.gray800};">
+                                                        ${safeData.customerName}
+                                                    </p>
+                                                    <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                        ${safeData.customerEmail}
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Trip Summary -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card-secondary border-light" style="background-color: ${BRAND_COLORS.gray50}; border-radius: 10px; border: 1px solid ${BRAND_COLORS.gray200};">
+                                            <tr>
+                                                <td style="padding: 18px 20px;">
+                                                    <p class="text-muted" style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${BRAND_COLORS.gray500};">
+                                                        Trip Summary
+                                                    </p>
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray700};">From:</strong> ${safeData.startLocation}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray700};">To:</strong> ${safeData.endLocation}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray700};">Pickup:</strong> ${safeData.pickupTime} on ${safeData.pickupDate}
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Delivery Details -->
+                                <tr>
+                                    <td class="padding-mobile" style="padding: 0 32px 24px;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-card-secondary border-light" style="background-color: ${BRAND_COLORS.gray50}; border-radius: 10px; border-left: 4px solid ${BRAND_COLORS.info};">
+                                            <tr>
+                                                <td style="padding: 18px 20px;">
+                                                    <p style="margin: 0 0 12px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${BRAND_COLORS.info};">
+                                                        Delivery Details
+                                                    </p>
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray700};">Delivered:</strong> ${safeData.deliveredAt}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${BRAND_COLORS.gray600};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray700};">Booking Ref:</strong> ${safeData.bookingRef}
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="text-muted" style="padding: 4px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: ${BRAND_COLORS.gray500};">
+                                                                <strong class="text-dark" style="color: ${BRAND_COLORS.gray600};">Transaction:</strong> <span style="font-family: 'SF Mono', 'Monaco', monospace; font-size: 12px;">${safeData.transactionId}</span>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Footer Message -->
+                                <tr>
+                                    <td class="padding-mobile email-card-secondary border-light" style="padding: 20px 32px; background-color: ${BRAND_COLORS.gray50}; border-top: 1px solid ${BRAND_COLORS.gray200};">
+                                        <p class="text-muted" style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: ${BRAND_COLORS.gray500}; text-align: center; line-height: 1.5;">
+                                            This is an automated delivery confirmation.<br>
+                                            The customer notification process is complete.
+                                        </p>
+                                    </td>
+                                </tr>
+
+                            </table>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Simple Footer -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto;">
+        <tr>
+            <td style="padding: 20px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <p class="text-muted" style="margin: 0; font-size: 13px; color: ${BRAND_COLORS.gray400};">
+                    AC Shuttles Notification System
+                </p>
+            </td>
+        </tr>
+    </table>
+
 </body>
 </html>`;
 
-  const text = `AC SHUTTLES - DELIVERY CONFIRMATION
+  const text = `AC SHUTTLES - DELIVERY CONFIRMED
 
-${statusIcon} CUSTOMER NOTIFICATION DELIVERED
+Email Delivered Successfully
 
-The customer has successfully received their booking ${data.notificationType.toUpperCase()} notification.
+STATUS: Booking ${statusText}
 
-CUSTOMER DETAILS:
-================
+${safeData.customerName} has received their booking ${statusText.toLowerCase()} notification.
+
+CUSTOMER
+========
 Name: ${data.customerName}
 Email: ${data.customerEmail}
 
-TRIP INFORMATION:
-================
+TRIP SUMMARY
+============
 From: ${data.startLocation}
 To: ${data.endLocation}
 Pickup: ${data.pickupTime} on ${data.pickupDate}
 
-DELIVERY DETAILS:
+DELIVERY DETAILS
 ================
-Status: Booking ${statusText}
-Delivered At: ${data.deliveredAt}
-Booking Reference: ${data.bookingRef}
-Transaction ID: ${data.transactionId}
+Delivered: ${formattedDeliveredAt}
+Booking Ref: ${data.bookingRef}
+Transaction: ${data.transactionId}
 
-This is an automated delivery confirmation from AC Shuttles.
-The customer notification process is now complete.`;
+---
+This is an automated delivery confirmation.
+The customer notification process is complete.
+
+AC Shuttles Notification System`;
 
   return { html, text };
 }

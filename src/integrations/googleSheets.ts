@@ -728,8 +728,14 @@ async function safeReadText(response: Response): Promise<string> {
 }
 
 function extractRowNumber(range: string): number {
-  // Extract row number from range like "Sheet1!A5:Z5" or "Sheet1!A5"
-  const match = range.match(/!?[A-Z]+(\d+)/i);
+  // Extract row number from range like "Sheet1!A5:Z5" or "Sheet1!A5" or "A5:Z5" or "A5"
+  // First try to match after the '!' (e.g., "Sheet1!A5:Z5" -> matches "!A5", captures "5")
+  let match = range.match(/![A-Z]+(\d+)/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  // If no '!', match column+row at start of string (e.g., "A5:Z5" -> matches "A5", captures "5")
+  match = range.match(/^[A-Z]+(\d+)/i);
   return match ? parseInt(match[1], 10) : 0;
 }
 

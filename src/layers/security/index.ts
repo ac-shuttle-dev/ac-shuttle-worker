@@ -273,14 +273,19 @@ function generateRequestId(): string {
  * Timing-safe string comparison to prevent timing attacks
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still do the comparison to maintain constant time
-    b = a;
+  // First capture whether lengths match BEFORE any modification
+  const lengthsMatch = a.length === b.length;
+
+  // Pad shorter string to match longer string length for constant-time comparison
+  const maxLen = Math.max(a.length, b.length);
+  const paddedA = a.padEnd(maxLen, '\0');
+  const paddedB = b.padEnd(maxLen, '\0');
+
+  let result = 0;
+  for (let i = 0; i < maxLen; i++) {
+    result |= paddedA.charCodeAt(i) ^ paddedB.charCodeAt(i);
   }
 
-  let result = a.length === b.length ? 0 : 1;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
+  // Only return true if lengths matched AND content matched
+  return lengthsMatch && result === 0;
 }

@@ -10,6 +10,7 @@ export { generateCustomerConfirmationEmail, type CustomerConfirmationData } from
 export { generateCustomerDenialEmail, type CustomerDenialData } from './customerDenial';
 export { generateOwnerDeliveryNotificationEmail, type OwnerDeliveryNotificationData } from './ownerDeliveryNotification';
 export { generateCustomerSubmissionAckEmail, type CustomerSubmissionAckData } from './customerSubmissionAck';
+export { generateCustomerReminderEmail, type CustomerReminderData } from './customerReminder';
 
 // Re-export utility functions
 export {
@@ -19,5 +20,6 @@ export {
   formatTicketDate,
   formatTicketTime,
   calculateArrivalTime,
-  parseDurationMinutes
+  parseDurationMinutes,
+  formatHumanReadableTimestamp
 } from './utils';
